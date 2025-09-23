@@ -1,6 +1,13 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
+import jwt from '@fastify/jwt'
+import cookie from '@fastify/cookie'
 import 'dotenv/config'
+
+import healthDb from './routes/healthDb.js'
+import authRoutes from './routes/authRoutes.js'
+import userRolesRoutes from './routes/userRolesRoutes.js'
+import userTypesRoutes from './routes/userTypesRoutes.js'
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -19,15 +26,49 @@ const app = Fastify({
         }
 })
 
-await app.register(cors)
+await app.register(cors, {
+    origin: true,
+    credentials: true
+})
 
+// cookies primero
+await app.register(cookie)
+
+// jwt integrado
+await app.register(jwt, {
+    secret: process.env.JWT_SECRET as string,
+    sign: { expiresIn: process.env.JWT_EXPIRES_IN || '1h' },
+    cookie: {
+        cookieName: 'token', // nombre de la cookie con el access token
+        signed: false
+    }
+})
+
+// helper para proteger rutas
+app.decorate(
+    'authenticate',
+    async function (req: any, reply: any) {
+        try {
+            await req.jwtVerify()
+        } catch (err) {
+            reply.code(401).send({ message: 'Token inválido o ausente' })
+        }
+    }
+)
+
+// rutas
 app.get('/health', async () => ({ status: 'ok' }))
+await app.register(authRoutes, { prefix: '/auth' })
+await app.register(healthDb, { prefix: '/health' })
+await app.register(userRolesRoutes, { prefix: '/api/user-roles' })
+await app.register(userTypesRoutes, { prefix: '/api/user-types' })
 
 const port = Number(process.env.PORT ?? 3000)
+const host = process.env.HOST ?? '127.0.0.1'
 
 try {
-    await app.listen({ port, host: '127.0.0.1' })
-    app.log.info(`Servidor escuchando en http://localhost:${port}`)
+    await app.listen({ port, host })
+    app.log.info(`Servidor escuchando en http://${host}:${port}`)
 } catch (err) {
     app.log.error(err)
     process.exit(1)
