@@ -8,6 +8,7 @@ import healthDb from './routes/healthDb.js'
 import authRoutes from './routes/authRoutes.js'
 import userRolesRoutes from './routes/userRolesRoutes.js'
 import userTypesRoutes from './routes/userTypesRoutes.js'
+import usersRoutes from './routes/usersRoutes.js'
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -60,6 +61,7 @@ app.decorate(
 app.get('/health', async () => ({ status: 'ok' }))
 await app.register(authRoutes, { prefix: '/auth' })
 await app.register(healthDb, { prefix: '/health' })
+await app.register(usersRoutes, { prefix: '/api/users' })
 await app.register(userRolesRoutes, { prefix: '/api/user-roles' })
 await app.register(userTypesRoutes, { prefix: '/api/user-types' })
 
