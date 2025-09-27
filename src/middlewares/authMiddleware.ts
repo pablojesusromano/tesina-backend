@@ -8,11 +8,11 @@ export async function protectRoute(req: FastifyRequest, reply: FastifyReply) {
         const userId = (req as any).user?.userId
         if (!userId) return reply.code(401).send({ message: 'Token inválido: falta userId' })
 
-        const user = await findUserById(Number(userId))
-        if (!user) return reply.code(401).send({ message: 'No autorizado: usuario no encontrado' })
+        const dbUser = await findUserById(Number(userId))
+        if (!dbUser) return reply.code(401).send({ message: 'No autorizado: usuario no encontrado' })
 
             // adjunta el usuario a la request para handlers posteriores
-            ; (req as any).user = user
+            ; (req as any).authUser  = dbUser
     } catch {
         return reply.code(401).send({ message: 'No autorizado: token inválido o ausente' })
     }

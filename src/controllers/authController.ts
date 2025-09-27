@@ -1,6 +1,8 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import bcrypt from 'bcryptjs'
 import { findUserByEmailOrUsername, createUser, findUserById } from '../models/user.js'
+import { findRoleById, findRoleByName } from '../models/userRole.js'
+import { findUserTypeById, findUserTypeByName } from '../models/userType.js'
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -26,29 +28,89 @@ function setRefreshCookie(reply: FastifyReply, token: string) {
 
 export async function register(req: FastifyRequest, reply: FastifyReply) {
     // @ts-ignore (validado por Zod)
-    const { name, email, username, password } = req.body as {
-        name: string; email: string; username: string; password: string
+    const {
+        name, email, username, password,
+        roleId, roleName,
+        userTypeId, userTypeName
+    } = req.body as {
+        name: string; email: string; username: string; password: string;
+        roleId?: number | string; roleName?: string;
+        userTypeId?: number | string; userTypeName?: string;
     }
 
-    // Evitar duplicados (email o username)
+    // Duplicados
     const existsByEmail = await findUserByEmailOrUsername(email)
     const existsByUsername = await findUserByEmailOrUsername(username)
     if (existsByEmail || existsByUsername) {
         return reply.code(400).send({ message: 'Email o nombre de usuario ya está en uso' })
     }
 
+    // Resolver rol
+    let roleIdResolved: number | undefined = undefined
+    if (roleId != null) {
+        const r = await findRoleById(Number(roleId))
+        if (!r) return reply.code(400).send({ message: 'roleId inválido' })
+        roleIdResolved = r.id
+    } else if (roleName) {
+        const r = await findRoleByName(roleName)
+        if (!r) return reply.code(400).send({ message: 'roleName inválido' })
+        roleIdResolved = r.id
+    }
+
+    // Resolver user type
+    let userTypeIdResolved: number | undefined = undefined
+    if (userTypeId != null) {
+        const ut = await findUserTypeById(Number(userTypeId))
+        if (!ut) return reply.code(400).send({ message: 'userTypeId inválido' })
+        userTypeIdResolved = ut.id
+    } else if (userTypeName) {
+        const ut = await findUserTypeByName(userTypeName)
+        if (!ut) return reply.code(400).send({ message: 'userTypeName inválido' })
+        userTypeIdResolved = ut.id
+    }
+
     const hashed = await bcrypt.hash(password, 10)
-    const userId = await createUser(name, '', email, username, hashed)
-    if (!userId) return reply.code(500).send({ message: 'Error creando usuario' })
 
-    // Access (15m) y Refresh (7d)
-    const access = await reply.jwtSign({ userId })
-    const refresh = await reply.jwtSign({ userId }, { expiresIn: '7d' })
+    try {
+        const newId = await createUser(
+            name,
+            email,
+            username,
+            hashed,
+            {
+                ...(roleIdResolved !== undefined ? { roleId: roleIdResolved } : {}),
+                ...(userTypeIdResolved !== undefined ? { userTypeId: userTypeIdResolved } : {})
+            }
+        )
 
-    setAccessCookie(reply, access)
-    setRefreshCookie(reply, refresh)
+        if (!newId) return reply.code(500).send({ message: 'Error creando usuario' })
 
-    return reply.code(201).send({ message: 'Usuario creado', token: access })
+        const access = await reply.jwtSign({ userId: newId })
+        const refresh = await reply.jwtSign({ userId: newId }, { expiresIn: '7d' })
+
+        setAccessCookie(reply, access)
+        setRefreshCookie(reply, refresh)
+
+        return reply.code(201).send({
+            message: 'Usuario creado',
+            user: {
+                id: newId,
+                email,
+                username,
+                roleId: roleIdResolved ?? 1,
+                userTypeId: userTypeIdResolved ?? 1
+            }
+        })
+    } catch (err: any) {
+        // Mapeo amigable de MySQL
+        if (err?.code === 'ER_DUP_ENTRY') {
+            return reply.code(409).send({ message: 'Duplicado (email/username)' })
+        }
+        if (err?.code === 'ER_NO_REFERENCED_ROW_2') {
+            return reply.code(400).send({ message: 'FK inválida (roleId/userTypeId)' })
+        }
+        return reply.code(500).send({ message: 'Error creando usuario' })
+    }
 }
 
 export async function login(req: FastifyRequest, reply: FastifyReply) {

@@ -15,13 +15,15 @@ export async function requireAdmin(req: FastifyRequest, reply: FastifyReply) {
 
 // Middleware para verificar que el usuario sea super admin
 export async function requireSuperAdmin(req: FastifyRequest, reply: FastifyReply) {
-    const user = (req as any).user
+    const user = (req as any).authUser
     if (!user) {
         return reply.code(401).send({ message: 'No autorizado: usuario no encontrado' })
     }
 
     // Verificar que tenga role_id de super_admin (3)
-    if (user.role_id !== 3) {
+    const role_id = Number(user.role_id);
+    console.log('Role ID del usuario:', role_id); // Línea de depuración
+    if (role_id !== 3) {
         return reply.code(403).send({ message: 'Acceso denegado: se requieren permisos de super administrador' })
     }
 }

@@ -60,13 +60,11 @@ export async function findUserByEmailOrUsername(identifier: string): Promise<DBU
  */
 export async function createUser(
     name: string,
-    lastname: string,
     email: string,
     username: string,
     hashedPassword: string,
     opts?: { roleId?: number; userTypeId?: number; image?: string | null }
 ): Promise<number | null> {
-    const fullName = [name, lastname].filter(Boolean).join(' ').trim() || null
     const roleId = opts?.roleId ?? 1
     const userTypeId = opts?.userTypeId ?? 1
     const image = opts?.image ?? null
@@ -74,7 +72,7 @@ export async function createUser(
     const [res] = await pool.execute<ResultSetHeader>(
         `INSERT INTO users (email, username, password_hash, name, image, role_id, user_type_id)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [email, username, hashedPassword, fullName, image, roleId, userTypeId]
+        [email, username, hashedPassword, name, image, roleId, userTypeId]
     )
     return res.insertId || null
 }
