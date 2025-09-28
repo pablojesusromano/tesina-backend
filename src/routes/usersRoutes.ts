@@ -4,10 +4,10 @@ import { requireSuperAdmin } from '../middlewares/adminMiddleware.js'
 import {
     listUsers,
     getMe,
-    getUserByIdCtrl,
-    createUserCtrl,
-    updateUserCtrl,
-    deleteUserCtrl
+    getUserById,
+    createUser,
+    updateUser,
+    deleteUser
 } from '../controllers/usersController.js'
 
 // middleware: dueño o admin para /users/:id
@@ -37,19 +37,19 @@ export default async function usersRoutes(app: FastifyInstance) {
     app.get('/me', getMe)
 
     // GET /users/:id (dueño o admin)
-    app.get('/:id', { preHandler: ownerOrAdmin }, getUserByIdCtrl)
+    app.get('/:id', { preHandler: ownerOrAdmin }, getUserById)
 
     // POST /users (admin/super_admin)
     app.post('/', async (req, reply) => {
         const auth = (req as any).authUser
         const isAdmin = Number(auth?.role_id) === 2 || Number(auth?.role_id) === 3
         if (!isAdmin) return reply.code(403).send({ message: 'Acceso denegado' })
-        return createUserCtrl(req, reply)
+        return createUser(req, reply)
     })
 
     // PATCH /users/:id (dueño o admin)
-    app.patch('/:id', { preHandler: ownerOrAdmin }, updateUserCtrl)
+    app.patch('/:id', { preHandler: ownerOrAdmin }, updateUser)
 
     // DELETE /users/:id (super_admin)
-    app.delete('/:id', { preHandler: requireSuperAdmin }, deleteUserCtrl)
+    app.delete('/:id', { preHandler: requireSuperAdmin }, deleteUser)
 }

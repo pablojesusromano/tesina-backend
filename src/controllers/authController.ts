@@ -1,6 +1,6 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import bcrypt from 'bcryptjs'
-import { findUserByEmailOrUsername, createUser, findUserById } from '../models/user.js'
+import { findUserByEmailOrUsername, createUser, findUserById, findUserByFirebaseUid, setFirebaseUid, findUserByEmail } from '../models/user.js'
 import { findRoleById, findRoleByName } from '../models/userRole.js'
 import { findUserTypeById, findUserTypeByName } from '../models/userType.js'
 
@@ -110,6 +110,55 @@ export async function register(req: FastifyRequest, reply: FastifyReply) {
             return reply.code(400).send({ message: 'FK inválida (roleId/userTypeId)' })
         }
         return reply.code(500).send({ message: 'Error creando usuario' })
+    }
+}
+
+export async function firebaseAuth(req: FastifyRequest, reply: FastifyReply) {
+    const { idToken } = (req.body as any) ?? {}
+    if (!idToken) return reply.code(400).send({ message: 'Falta idToken' })
+
+    try {
+        // 1) Verificar token con Firebase Admin
+        const decoded = await req.server.firebase.auth().verifyIdToken(idToken, true)
+        const { uid, email, email_verified } = decoded
+
+        if (!email) return reply.code(400).send({ message: 'El token no contiene email' })
+        if (email_verified === false) {
+            return reply.code(401).send({ message: 'Email no verificado en Firebase' })
+        }
+
+        // 2) Buscar usuario SOLO existente (no crear)
+        let user = await findUserByFirebaseUid(uid)
+
+        // Si no hay vinculación por UID, podés decidir qué hacer:
+        // A) Rechazar (requiere registro previo en tu BD con ese UID)
+        // B) Opcional: si existe por email pero sin UID, devolver un 409 para que el cliente haga el flujo de "vincular"
+        if (!user) {
+            const byEmail = await findUserByEmail(email)
+            if (byEmail && !byEmail.firebase_uid) {
+                return reply.code(409).send({
+                    message: 'Cuenta existente sin vincular a Firebase',
+                    code: 'NEEDS_LINK', // útil para manejar en el front
+                })
+            }
+            return reply.code(404).send({
+                message: 'Usuario no registrado en el sistema',
+                code: 'NOT_FOUND',
+            })
+        }
+
+        // 3) Emitir tus JWT en cookies
+        const access = await reply.jwtSign({ userId: user.id })
+        const refresh = await reply.jwtSign({ userId: user.id }, { expiresIn: '7d' })
+        setAccessCookie(reply, access)
+        setRefreshCookie(reply, refresh)
+
+        return reply.send({
+            message: 'Login con Firebase OK',
+            user: { id: user.id, email: user.email, username: user.username }
+        })
+    } catch {
+        return reply.code(401).send({ message: 'idToken inválido' })
     }
 }
 

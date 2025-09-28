@@ -10,6 +10,9 @@ import userRolesRoutes from './routes/userRolesRoutes.js'
 import userTypesRoutes from './routes/userTypesRoutes.js'
 import usersRoutes from './routes/usersRoutes.js'
 
+import firebaseAdmin from './plugins/firebaseAdmin.js'
+
+
 const isProd = process.env.NODE_ENV === 'production'
 
 const app = Fastify({
@@ -56,6 +59,8 @@ app.decorate(
         }
     }
 )
+// firebase
+await app.register(firebaseAdmin)
 
 // rutas
 app.get('/health', async () => ({ status: 'ok' }))

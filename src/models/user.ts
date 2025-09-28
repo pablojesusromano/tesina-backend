@@ -5,9 +5,8 @@ export type DBUser = {
     id: number
     email: string
     username: string
+    firebase_uid: string | null
     password_hash: string | null
-    google_id: string | null
-    facebook_id: string | null
     name: string | null
     image: string | null
     role_id: number
@@ -16,6 +15,18 @@ export type DBUser = {
     created_at: Date
     updated_at: Date | null
 }
+
+export async function findUserByFirebaseUid(uid: string): Promise<DBUser | null> {
+    const [rows] = await pool.query<(DBUser & RowDataPacket)[]>(
+        'SELECT * FROM users WHERE firebase_uid = ? LIMIT 1', [uid]
+    )
+    return rows[0] ?? null
+}
+
+export async function setFirebaseUid(userId: number, uid: string): Promise<void> {
+    await pool.execute('UPDATE users SET firebase_uid = ? WHERE id = ?', [uid, userId])
+}
+
 
 /** Buscar usuario por email */
 export async function findUserByEmail(email: string): Promise<DBUser | null> {

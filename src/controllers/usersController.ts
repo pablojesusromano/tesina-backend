@@ -44,7 +44,7 @@ export async function getMe(req: FastifyRequest, reply: FastifyReply) {
 }
 
 /** GET /users/:id (dueño o admin) */
-export async function getUserByIdCtrl(req: FastifyRequest, reply: FastifyReply) {
+export async function getUserById(req: FastifyRequest, reply: FastifyReply) {
     const { id } = req.params as { id: string }
     const userId = Number(id)
 
@@ -61,12 +61,12 @@ export async function getUserByIdCtrl(req: FastifyRequest, reply: FastifyReply) 
 }
 
 /** POST /users (admin/super_admin) */
-export async function createUserCtrl(req: FastifyRequest, reply: FastifyReply) {
+export async function createUser(req: FastifyRequest, reply: FastifyReply) {
     const auth = (req as any).authUser
     const isAdmin = Number(auth?.role_id) === 2 || Number(auth?.role_id) === 3
     if (!isAdmin) return reply.code(403).send({ message: 'Acceso denegado' })
 
-    const { name, email, username, password, roleId, userTypeId, image } = (req.body as any) ?? {}
+    const { name, email, username, password, userTypeId, image } = (req.body as any) ?? {}
 
     if (!email || !username || !password) {
         return reply.code(400).send({ message: 'email, username y password son obligatorios' })
@@ -77,12 +77,6 @@ export async function createUserCtrl(req: FastifyRequest, reply: FastifyReply) {
     if (dup) return reply.code(409).send({ message: 'Email o nombre de usuario ya registrados' })
 
     // Validar FKs si llegan
-    let roleIdResolved: number | undefined
-    if (roleId != null) {
-        const r = await findRoleById(Number(roleId))
-        if (!r) return reply.code(400).send({ message: 'roleId inválido' })
-        roleIdResolved = r.id
-    }
     let userTypeIdResolved: number | undefined
     if (userTypeId != null) {
         const ut = await findUserTypeById(Number(userTypeId))
@@ -94,13 +88,13 @@ export async function createUserCtrl(req: FastifyRequest, reply: FastifyReply) {
 
     const [res] = await pool.execute<ResultSetHeader>(
         `INSERT INTO users (email, username, password_hash, name, image, role_id, user_type_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [email, username, hashed, name ?? null, image ?? null, roleIdResolved ?? 1, userTypeIdResolved ?? 1]
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [email, username, hashed, name ?? null, image ?? null, 1, userTypeIdResolved ?? 1]
     )
 
     return reply.code(201).send({
         message: 'Usuario creado',
-        user: { id: res.insertId, email, username, name: name ?? null, image: image ?? null, role_id: roleIdResolved ?? 1, user_type_id: userTypeIdResolved ?? 1 }
+        user: { id: res.insertId, email, username, name: name ?? null, image: image ?? null, role_id: 1, user_type_id: userTypeIdResolved ?? 1 }
     })
 }
 
@@ -108,7 +102,7 @@ export async function createUserCtrl(req: FastifyRequest, reply: FastifyReply) {
  *  - Dueño puede cambiar: name, username, image, password
  *  - Admin además puede cambiar: role_id, user_type_id, points
  */
-export async function updateUserCtrl(req: FastifyRequest, reply: FastifyReply) {
+export async function updateUser(req: FastifyRequest, reply: FastifyReply) {
     const { id } = req.params as { id: string }
     const userId = Number(id)
 
@@ -166,7 +160,7 @@ export async function updateUserCtrl(req: FastifyRequest, reply: FastifyReply) {
 }
 
 /** DELETE /users/:id (super_admin) */
-export async function deleteUserCtrl(req: FastifyRequest, reply: FastifyReply) {
+export async function deleteUser(req: FastifyRequest, reply: FastifyReply) {
     const auth = (req as any).authUser
     const isSuper = Number(auth?.role_id) === 3
     if (!isSuper) return reply.code(403).send({ message: 'Acceso denegado: se requieren permisos de super administrador' })
