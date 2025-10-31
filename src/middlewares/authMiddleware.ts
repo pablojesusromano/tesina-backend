@@ -1,19 +1,30 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { findUserById } from '../models/user.js'
+import { findAdminById } from '../models/admin'
 
-export async function protectRoute(req: FastifyRequest, reply: FastifyReply) {
+// Middleware para proteger rutas de ADMINS (sistema de gestión)
+export async function protectAdminRoute(req: FastifyRequest, reply: FastifyReply) {
     try {
-        await (req as any).jwtVerify()
+        const token = req.cookies?.adminToken
+        if (!token) {
+            return reply.code(401).send({ message: 'Token no proporcionado' })
+        }
 
-        const userId = (req as any).user?.userId
-        if (!userId) return reply.code(401).send({ message: 'Token inválido: falta userId' })
+        const payload = req.server.jwt.verify(token) as { adminId?: number; type?: string }
+        const adminId = payload?.adminId
 
-        const dbUser = await findUserById(Number(userId))
-        if (!dbUser) return reply.code(401).send({ message: 'No autorizado: usuario no encontrado' })
+        if (!adminId || payload.type !== 'admin') {
+            return reply.code(401).send({ message: 'Token inválido' })
+        }
 
-            // adjunta el usuario a la request para handlers posteriores
-            ; (req as any).authUser  = dbUser
+        const admin = await findAdminById(adminId)
+        if (!admin) {
+            return reply.code(401).send({ message: 'Admin no encontrado' })
+        }
+
+        // Adjuntar admin a la request
+        (req as any).admin = admin
+
     } catch {
-        return reply.code(401).send({ message: 'No autorizado: token inválido o ausente' })
+        return reply.code(401).send({ message: 'Token inválido o ausente' })
     }
 }

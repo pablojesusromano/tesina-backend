@@ -1,14 +1,11 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import bcrypt from 'bcryptjs'
-import { findUserByEmailOrUsername, createUser, findUserById, findUserByFirebaseUid, setFirebaseUid, findUserByEmail } from '../models/user.js'
-import { findRoleById, findRoleByName } from '../models/userRole.js'
-import { findUserTypeById, findUserTypeByName } from '../models/userType.js'
+import { findAdminByEmailOrUsername, createAdmin, findAdminById } from '../models/admin'
 
 const isProd = process.env.NODE_ENV === 'production'
 
-// Helpers para setear cookies
 function setAccessCookie(reply: FastifyReply, token: string) {
-    reply.setCookie('token', token, {
+    reply.setCookie('adminToken', token, {
         httpOnly: true,
         secure: isProd,
         sameSite: 'lax',
@@ -16,8 +13,9 @@ function setAccessCookie(reply: FastifyReply, token: string) {
         maxAge: 15 * 60 // 15 min
     })
 }
+
 function setRefreshCookie(reply: FastifyReply, token: string) {
-    reply.setCookie('refreshToken', token, {
+    reply.setCookie('adminRefreshToken', token, {
         httpOnly: true,
         secure: isProd,
         sameSite: 'lax',
@@ -26,184 +24,113 @@ function setRefreshCookie(reply: FastifyReply, token: string) {
     })
 }
 
-export async function register(req: FastifyRequest, reply: FastifyReply) {
-    // @ts-ignore (validado por Zod)
-    const {
-        name, email, username, password,
-        roleId, roleName,
-        userTypeId, userTypeName
-    } = req.body as {
-        name: string; email: string; username: string; password: string;
-        roleId?: number | string; roleName?: string;
-        userTypeId?: number | string; userTypeName?: string;
+// REGISTRO de admin (solo para crear el primer admin o desde otro admin)
+export async function registerAdmin(req: FastifyRequest, reply: FastifyReply) {
+    const { email, username, password, name, image } = req.body as {
+        email: string
+        username: string
+        password: string
+        name: string
+        image?: string
     }
 
-    // Duplicados
-    const existsByEmail = await findUserByEmailOrUsername(email)
-    const existsByUsername = await findUserByEmailOrUsername(username)
+    const existsByEmail = await findAdminByEmailOrUsername(email)
+    const existsByUsername = await findAdminByEmailOrUsername(username)
+    
     if (existsByEmail || existsByUsername) {
-        return reply.code(400).send({ message: 'Email o nombre de usuario ya está en uso' })
-    }
-
-    // Resolver rol
-    let roleIdResolved: number | undefined = undefined
-    if (roleId != null) {
-        const r = await findRoleById(Number(roleId))
-        if (!r) return reply.code(400).send({ message: 'roleId inválido' })
-        roleIdResolved = r.id
-    } else if (roleName) {
-        const r = await findRoleByName(roleName)
-        if (!r) return reply.code(400).send({ message: 'roleName inválido' })
-        roleIdResolved = r.id
-    }
-
-    // Resolver user type
-    let userTypeIdResolved: number | undefined = undefined
-    if (userTypeId != null) {
-        const ut = await findUserTypeById(Number(userTypeId))
-        if (!ut) return reply.code(400).send({ message: 'userTypeId inválido' })
-        userTypeIdResolved = ut.id
-    } else if (userTypeName) {
-        const ut = await findUserTypeByName(userTypeName)
-        if (!ut) return reply.code(400).send({ message: 'userTypeName inválido' })
-        userTypeIdResolved = ut.id
+        return reply.code(400).send({ message: 'Email o username ya existe' })
     }
 
     const hashed = await bcrypt.hash(password, 10)
 
     try {
-        const newId = await createUser(
-            name,
-            email,
-            username,
-            hashed,
-            {
-                ...(roleIdResolved !== undefined ? { roleId: roleIdResolved } : {}),
-                ...(userTypeIdResolved !== undefined ? { userTypeId: userTypeIdResolved } : {})
-            }
-        )
+        const newId = await createAdmin(email, username, hashed, name, image)
+        
+        if (!newId) {
+            return reply.code(500).send({ message: 'Error creando admin' })
+        }
 
-        if (!newId) return reply.code(500).send({ message: 'Error creando usuario' })
-
-        const access = await reply.jwtSign({ userId: newId })
-        const refresh = await reply.jwtSign({ userId: newId }, { expiresIn: '7d' })
+        const access = await reply.jwtSign({ adminId: newId, type: 'admin' })
+        const refresh = await reply.jwtSign({ adminId: newId, type: 'admin' }, { expiresIn: '7d' })
 
         setAccessCookie(reply, access)
         setRefreshCookie(reply, refresh)
 
         return reply.code(201).send({
-            message: 'Usuario creado',
-            user: {
-                id: newId,
-                email,
-                username,
-                roleId: roleIdResolved ?? 1,
-                userTypeId: userTypeIdResolved ?? 1
-            }
+            message: 'Admin creado',
+            admin: { id: newId, email, username, name }
         })
     } catch (err: any) {
-        // Mapeo amigable de MySQL
         if (err?.code === 'ER_DUP_ENTRY') {
-            return reply.code(409).send({ message: 'Duplicado (email/username)' })
+            return reply.code(409).send({ message: 'Email o username duplicado' })
         }
-        if (err?.code === 'ER_NO_REFERENCED_ROW_2') {
-            return reply.code(400).send({ message: 'FK inválida (roleId/userTypeId)' })
-        }
-        return reply.code(500).send({ message: 'Error creando usuario' })
+        return reply.code(500).send({ message: 'Error creando admin' })
     }
 }
 
-export async function firebaseAuth(req: FastifyRequest, reply: FastifyReply) {
-    const { idToken } = (req.body as any) ?? {}
-    if (!idToken) return reply.code(400).send({ message: 'Falta idToken' })
-
-    try {
-        // 1) Verificar token con Firebase Admin
-        const decoded = await req.server.firebase.auth().verifyIdToken(idToken, true)
-        const { uid, email, email_verified } = decoded
-
-        if (!email) return reply.code(400).send({ message: 'El token no contiene email' })
-        if (email_verified === false) {
-            return reply.code(401).send({ message: 'Email no verificado en Firebase' })
-        }
-
-        // 2) Buscar usuario SOLO existente (no crear)
-        let user = await findUserByFirebaseUid(uid)
-
-        // Si no hay vinculación por UID, podés decidir qué hacer:
-        // A) Rechazar (requiere registro previo en tu BD con ese UID)
-        // B) Opcional: si existe por email pero sin UID, devolver un 409 para que el cliente haga el flujo de "vincular"
-        if (!user) {
-            const byEmail = await findUserByEmail(email)
-            if (byEmail && !byEmail.firebase_uid) {
-                return reply.code(409).send({
-                    message: 'Cuenta existente sin vincular a Firebase',
-                    code: 'NEEDS_LINK', // útil para manejar en el front
-                })
-            }
-            return reply.code(404).send({
-                message: 'Usuario no registrado en el sistema',
-                code: 'NOT_FOUND',
-            })
-        }
-
-        // 3) Emitir tus JWT en cookies
-        const access = await reply.jwtSign({ userId: user.id })
-        const refresh = await reply.jwtSign({ userId: user.id }, { expiresIn: '7d' })
-        setAccessCookie(reply, access)
-        setRefreshCookie(reply, refresh)
-
-        return reply.send({
-            message: 'Login con Firebase OK',
-            user: { id: user.id, email: user.email, username: user.username }
-        })
-    } catch {
-        return reply.code(401).send({ message: 'idToken inválido' })
+// LOGIN de admin
+export async function loginAdmin(req: FastifyRequest, reply: FastifyReply) {
+    const { email, username, password } = req.body as {
+        email?: string
+        username?: string
+        password: string
     }
-}
-
-export async function login(req: FastifyRequest, reply: FastifyReply) {
-    // @ts-ignore (validado por Zod)
-    const { email, username, password } = req.body as { email?: string; username?: string; password: string }
 
     const identifier = email ?? username
-    if (!identifier) return reply.code(400).send({ message: 'Debes enviar email o nombre de usuario' })
+    if (!identifier) {
+        return reply.code(400).send({ message: 'Debes enviar email o username' })
+    }
 
-    const user = await findUserByEmailOrUsername(identifier)
-    if (!user || !user.password_hash) return reply.code(400).send({ message: 'Credenciales inválidas' })
+    const admin = await findAdminByEmailOrUsername(identifier)
+    if (!admin) {
+        return reply.code(400).send({ message: 'Credenciales inválidas' })
+    }
 
-    const ok = await bcrypt.compare(password, user.password_hash)
-    if (!ok) return reply.code(400).send({ message: 'Credenciales inválidas' })
+    const ok = await bcrypt.compare(password, admin.password_hash)
+    if (!ok) {
+        return reply.code(400).send({ message: 'Credenciales inválidas' })
+    }
 
-    // Access (15m) y Refresh (7d)
-    const access = await reply.jwtSign({ userId: user.id })
-    const refresh = await reply.jwtSign({ userId: user.id }, { expiresIn: '7d' })
+    const access = await reply.jwtSign({ adminId: admin.id, type: 'admin' })
+    const refresh = await reply.jwtSign({ adminId: admin.id, type: 'admin' }, { expiresIn: '7d' })
 
     setAccessCookie(reply, access)
     setRefreshCookie(reply, refresh)
 
     return reply.send({
         message: 'Login correcto',
-        user: { id: user.id, email: user.email, username: user.username }
+        admin: {
+            id: admin.id,
+            email: admin.email,
+            username: admin.username,
+            name: admin.name,
+            image: admin.image
+        }
     })
 }
 
-export async function refreshToken(req: FastifyRequest, reply: FastifyReply) {
-    const rt = req.cookies?.refreshToken
-    if (!rt) return reply.code(401).send({ message: 'Falta refresh token' })
+// REFRESH TOKEN de admin
+export async function refreshAdminToken(req: FastifyRequest, reply: FastifyReply) {
+    const rt = req.cookies?.adminRefreshToken
+    if (!rt) {
+        return reply.code(401).send({ message: 'Falta refresh token' })
+    }
 
     try {
-        // Verificamos el refresh token manualmente
-        const payload = req.server.jwt.verify(rt) as { userId?: number }
-        const userId = payload?.userId
-        if (!userId) return reply.code(401).send({ message: 'Refresh token inválido' })
+        const payload = req.server.jwt.verify(rt) as { adminId?: number; type?: string }
+        const adminId = payload?.adminId
+        
+        if (!adminId || payload.type !== 'admin') {
+            return reply.code(401).send({ message: 'Refresh token inválido' })
+        }
 
-        const user = await findUserById(userId)
-        if (!user) return reply.code(401).send({ message: 'Usuario no encontrado' })
+        const admin = await findAdminById(adminId)
+        if (!admin) {
+            return reply.code(401).send({ message: 'Admin no encontrado' })
+        }
 
-        // Rotación: nuevo access y nuevo refresh
-        const newAccess = await reply.jwtSign({ userId })
-        const newRefresh = await reply.jwtSign({ userId }, { expiresIn: '7d' })
+        const newAccess = await reply.jwtSign({ adminId, type: 'admin' })
+        const newRefresh = await reply.jwtSign({ adminId, type: 'admin' }, { expiresIn: '7d' })
 
         setAccessCookie(reply, newAccess)
         setRefreshCookie(reply, newRefresh)
@@ -214,8 +141,9 @@ export async function refreshToken(req: FastifyRequest, reply: FastifyReply) {
     }
 }
 
-export async function logout(_req: FastifyRequest, reply: FastifyReply) {
-    reply.clearCookie('token', { path: '/' })
-    reply.clearCookie('refreshToken', { path: '/' })
+// LOGOUT de admin
+export async function logoutAdmin(_req: FastifyRequest, reply: FastifyReply) {
+    reply.clearCookie('adminToken', { path: '/' })
+    reply.clearCookie('adminRefreshToken', { path: '/' })
     return reply.send({ message: 'Sesión cerrada' })
 }

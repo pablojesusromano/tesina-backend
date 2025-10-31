@@ -4,13 +4,14 @@ import jwt from '@fastify/jwt'
 import cookie from '@fastify/cookie'
 import 'dotenv/config'
 
-import healthDb from './routes/healthDb.js'
-import authRoutes from './routes/authRoutes.js'
-import userRolesRoutes from './routes/userRolesRoutes.js'
-import userTypesRoutes from './routes/userTypesRoutes.js'
-import usersRoutes from './routes/usersRoutes.js'
+import healthDb from './routes/healthDb'
+import authRoutes from './routes/authRoutes'
+import userAuthRoutes from './routes/userAuthRoutes'
+    import userTypesRoutes from './routes/userTypeRoutes'
+import usersRoutes from './routes/userRoutes'
 
-import firebaseAdmin from './plugins/firebaseAdmin.js'
+import firebaseAdmin from './plugins/firebaseAdmin'
+import adminRoutes from './routes/adminRoutes'
 
 
 const isProd = process.env.NODE_ENV === 'production'
@@ -64,10 +65,11 @@ await app.register(firebaseAdmin)
 
 // rutas
 app.get('/health', async () => ({ status: 'ok' }))
-await app.register(authRoutes, { prefix: '/auth' })
+await app.register(authRoutes, { prefix: '/auth' })           // Admins
+await app.register(userAuthRoutes, { prefix: '/user-auth' })  // Users móvil
 await app.register(healthDb, { prefix: '/health' })
-await app.register(usersRoutes, { prefix: '/api/users' })
-await app.register(userRolesRoutes, { prefix: '/api/user-roles' })
+await app.register(adminRoutes, { prefix: '/api/admins' })  // Gestión de admins
+await app.register(usersRoutes, { prefix: '/api/users' })  // Gestión de usuarios
 await app.register(userTypesRoutes, { prefix: '/api/user-types' })
 
 const port = Number(process.env.PORT ?? 3000)

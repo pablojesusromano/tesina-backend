@@ -1,121 +1,106 @@
-import { pool } from '../db/db.js'
+import { pool } from '../db/db'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 
-export type DBUser = {
+export interface User {
     id: number
-    email: string
-    username: string
-    firebase_uid: string | null
-    password_hash: string | null
-    name: string | null
+    firebase_uid: string
+    name: string | null      // Opcional en la BD
+    username: string | null  // Opcional en la BD
     image: string | null
-    role_id: number
-    user_type_id: number
+    user_type_id: number | null  // Opcional en la BD
     points: number
     created_at: Date
     updated_at: Date | null
 }
 
-export async function findUserByFirebaseUid(uid: string): Promise<DBUser | null> {
-    const [rows] = await pool.query<(DBUser & RowDataPacket)[]>(
-        'SELECT * FROM users WHERE firebase_uid = ? LIMIT 1', [uid]
+export async function findUserByFirebaseUid(firebaseUid: string): Promise<User | null> {
+    const [rows] = await pool.execute<(User & RowDataPacket)[]>(
+        'SELECT * FROM users WHERE firebase_uid = ?',
+        [firebaseUid]
     )
-    return rows[0] ?? null
+    return rows[0] || null
 }
 
-export async function setFirebaseUid(userId: number, uid: string): Promise<void> {
-    await pool.execute('UPDATE users SET firebase_uid = ? WHERE id = ?', [uid, userId])
-}
-
-
-/** Buscar usuario por email */
-export async function findUserByEmail(email: string): Promise<DBUser | null> {
-    const [rows] = await pool.query<(DBUser & RowDataPacket)[]>(
-        'SELECT * FROM users WHERE email = ? LIMIT 1',
-        [email]
-    )
-    return rows[0] ?? null
-}
-
-/** Buscar usuario por username */
-export async function findUserByUsername(username: string): Promise<DBUser | null> {
-    const [rows] = await pool.query<(DBUser & RowDataPacket)[]>(
-        'SELECT * FROM users WHERE username = ? LIMIT 1',
+export async function findUserByUsername(username: string): Promise<User | null> {
+    const [rows] = await pool.execute<(User & RowDataPacket)[]>(
+        'SELECT * FROM users WHERE username = ?',
         [username]
     )
-    return rows[0] ?? null
+    return rows[0] || null
 }
 
-/** Buscar usuario por id */
-export async function findUserById(id: number): Promise<DBUser | null> {
-    const [rows] = await pool.query<(DBUser & RowDataPacket)[]>(
-        'SELECT * FROM users WHERE id = ? LIMIT 1',
+export async function findUserById(id: number): Promise<User | null> {
+    const [rows] = await pool.execute<(User & RowDataPacket)[]>(
+        'SELECT * FROM users WHERE id = ?',
         [id]
     )
-    return rows[0] ?? null
+    return rows[0] || null
 }
 
-/** Buscar por email O username (útil para login) */
-export async function findUserByEmailOrUsername(identifier: string): Promise<DBUser | null> {
-    const [rows] = await pool.query<(DBUser & RowDataPacket)[]>(
-        'SELECT * FROM users WHERE email = ? OR username = ? LIMIT 1',
-        [identifier, identifier]
-    )
-    return rows[0] ?? null
-}
-
-/**
- * Crear usuario local (email + username + password_hash)
- * - role_id y user_type_id por defecto: 1=user, 1=usuario_comun (ajustá si querés)
- * - name se arma con name + lastname (si los pasás separados)
- */
 export async function createUser(
+    firebaseUid: string,
     name: string,
-    email: string,
     username: string,
-    hashedPassword: string,
-    opts?: { roleId?: number; userTypeId?: number; image?: string | null }
+    userTypeId?: number | null,
+    image?: string | null
 ): Promise<number | null> {
-    const roleId = opts?.roleId ?? 1
-    const userTypeId = opts?.userTypeId ?? 1
-    const image = opts?.image ?? null
-
-    const [res] = await pool.execute<ResultSetHeader>(
-        `INSERT INTO users (email, username, password_hash, name, image, role_id, user_type_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [email, username, hashedPassword, name, image, roleId, userTypeId]
+    const [result] = await pool.execute<ResultSetHeader>(
+        'INSERT INTO users (firebase_uid, name, username, user_type_id, image, points) VALUES (?, ?, ?, ?, ?, 0)',
+        [firebaseUid, name, username, userTypeId || null, image || null]
     )
-    return res.insertId || null
+    return result.insertId || null
 }
 
-/** Vincular Google a un usuario existente */
-export async function linkGoogleId(userId: number, googleId: string): Promise<void> {
-    await pool.execute(
-        'UPDATE users SET google_id = ? WHERE id = ?',
-        [googleId, userId]
+export async function updateUser(
+    id: number,
+    data: Partial<Omit<User, 'id' | 'firebase_uid' | 'created_at' | 'updated_at'>>
+): Promise<boolean> {
+    const fields: string[] = []
+    const values: any[] = []
+
+    if (data.name !== undefined) {
+        fields.push('name = ?')
+        values.push(data.name)
+    }
+    if (data.username !== undefined) {
+        fields.push('username = ?')
+        values.push(data.username)
+    }
+    if (data.image !== undefined) {
+        fields.push('image = ?')
+        values.push(data.image)
+    }
+    if (data.user_type_id !== undefined) {
+        fields.push('user_type_id = ?')
+        values.push(data.user_type_id)
+    }
+    if (data.points !== undefined) {
+        fields.push('points = ?')
+        values.push(data.points)
+    }
+
+    if (fields.length === 0) return false
+
+    values.push(id)
+    const [result] = await pool.execute<ResultSetHeader>(
+        `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
+        values
     )
+    return result.affectedRows > 0
 }
 
-/** Vincular Facebook a un usuario existente */
-export async function linkFacebookId(userId: number, facebookId: string): Promise<void> {
-    await pool.execute(
-        'UPDATE users SET facebook_id = ? WHERE id = ?',
-        [facebookId, userId]
+export async function addPoints(userId: number, points: number): Promise<boolean> {
+    const [result] = await pool.execute<ResultSetHeader>(
+        'UPDATE users SET points = points + ? WHERE id = ?',
+        [points, userId]
     )
+    return result.affectedRows > 0
 }
 
-/** Setear/actualizar password_hash para usuario local */
-export async function setPasswordHash(userId: number, passwordHash: string): Promise<void> {
-    await pool.execute(
-        'UPDATE users SET password_hash = ? WHERE id = ?',
-        [passwordHash, userId]
+export async function deleteUser(id: number): Promise<boolean> {
+    const [result] = await pool.execute<ResultSetHeader>(
+        'DELETE FROM users WHERE id = ?',
+        [id]
     )
-}
-
-/** (Opcional) Actualizar username asegurando unicidad (capturá ER_DUP_ENTRY arriba) */
-export async function updateUsername(userId: number, username: string): Promise<void> {
-    await pool.execute(
-        'UPDATE users SET username = ? WHERE id = ?',
-        [username, userId]
-    )
+    return result.affectedRows > 0
 }

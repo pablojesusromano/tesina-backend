@@ -1,14 +1,22 @@
 import type { FastifyInstance } from 'fastify'
-import { register, login, refreshToken, logout, firebaseAuth } from '../controllers/authController'
-import { validateRegister, validateLogin } from '../middlewares/validateMiddleware'
-import { protectRoute } from '../middlewares/authMiddleware'
+import {
+    registerAdmin,
+    loginAdmin,
+    refreshAdminToken,
+    logoutAdmin
+} from '../controllers/authController'
+import { protectAdminRoute } from '../middlewares/authMiddleware'
 
 export default async function authRoutes(app: FastifyInstance) {
-    app.post('/register', { preHandler: validateRegister }, register)
-    app.post('/login', { preHandler: validateLogin }, login)
+    // Registro de admin (proteger en producción)
+    app.post('/register', registerAdmin)
 
-    app.post('/firebase', firebaseAuth)
+    // Login de admin
+    app.post('/login', loginAdmin)
 
-    app.post('/refresh-token', refreshToken)
-    app.post('/logout', { preHandler: protectRoute }, logout)
+    // Refresh token
+    app.post('/refresh-token', refreshAdminToken)
+
+    // Logout
+    app.post('/logout', { preHandler: protectAdminRoute }, logoutAdmin)
 }

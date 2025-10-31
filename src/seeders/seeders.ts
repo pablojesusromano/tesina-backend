@@ -1,6 +1,5 @@
-import { pool } from '../db/db.js'
-import { createRole, roleNameExists } from '../models/userRole.js'
-import { createUserType, userTypeNameExists } from '../models/userType.js'
+import { pool } from '../db/db'
+import { createUserType, userTypeNameExists } from '../models/userType'
 
 // Datos por defecto para roles
 const defaultRoles = [
@@ -20,27 +19,6 @@ const defaultUserTypes = [
     { name: 'turista', public_name: 'Turista' },
     { name: 'profesional', public_name: 'Profesional' }
 ]
-
-// Seeder para roles
-export async function seedRoles() {
-    console.log('🌱 Sembrando roles...')
-    
-    try {
-        for (const role of defaultRoles) {
-            const exists = await roleNameExists(role.name)
-            if (!exists) {
-                const roleId = await createRole(role.name, role.public_name)
-                console.log(`✅ Rol creado: ${role.public_name} (ID: ${roleId})`)
-            } else {
-                console.log(`⏭️  Rol ya existe: ${role.public_name}`)
-            }
-        }
-        console.log('✨ Roles sembrados exitosamente\n')
-    } catch (error) {
-        console.error('❌ Error sembrando roles:', error)
-        throw error
-    }
-}
 
 // Seeder para tipos de usuario
 export async function seedUserTypes() {
@@ -68,7 +46,6 @@ export async function runSeeders() {
     console.log('🚀 Iniciando seeders...\n')
     
     try {
-        await seedRoles()
         await seedUserTypes()
         console.log('🎉 Todos los seeders completados exitosamente!')
     } catch (error) {
