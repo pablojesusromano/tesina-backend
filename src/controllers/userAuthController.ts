@@ -2,28 +2,6 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 import { findUserByFirebaseUid, findUserByUsername, createUser, findUserById } from '../models/user'
 import { findUserTypeByName } from '../models/userType'
 
-const isProd = process.env.NODE_ENV === 'production'
-
-function setUserAccessCookie(reply: FastifyReply, token: string) {
-    reply.setCookie('userToken', token, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 15 * 60
-    })
-}
-
-function setUserRefreshCookie(reply: FastifyReply, token: string) {
-    reply.setCookie('userRefreshToken', token, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 7 * 24 * 60 * 60
-    })
-}
-
 /** REGISTRO con Firebase */
 export async function firebaseRegister(req: FastifyRequest, reply: FastifyReply) {
     const { idToken, username, name, userTypeName, image } = req.body as {
@@ -41,6 +19,7 @@ export async function firebaseRegister(req: FastifyRequest, reply: FastifyReply)
     }
 
     try {
+        // 1. Verificar idToken de Firebase
         const decoded = await req.server.firebase.auth().verifyIdToken(idToken, true)
         const { uid, email_verified } = decoded
 
@@ -48,6 +27,7 @@ export async function firebaseRegister(req: FastifyRequest, reply: FastifyReply)
             return reply.code(401).send({ message: 'Email no verificado en Firebase' })
         }
 
+        // 2. Verificar si ya existe el usuario
         const existingByUid = await findUserByFirebaseUid(uid)
         if (existingByUid) {
             return reply.code(409).send({
@@ -64,26 +44,35 @@ export async function firebaseRegister(req: FastifyRequest, reply: FastifyReply)
             })
         }
 
+        // 3. Obtener userType si se proporciona
         let userTypeId: number | null = null
         if (userTypeName) {
             const ut = await findUserTypeByName(userTypeName)
             if (ut) userTypeId = ut.id
         }
 
+        // 4. Crear usuario en la base de datos
         const newUserId = await createUser(uid, name, username, userTypeId, image || null)
 
         if (!newUserId) {
             return reply.code(500).send({ message: 'Error creando usuario' })
         }
 
-        const access = await reply.jwtSign({ userId: newUserId, type: 'user' })
-        const refresh = await reply.jwtSign({ userId: newUserId, type: 'user' }, { expiresIn: '7d' })
+        // 5. Generar tokens JWT propios (NO cookies, solo tokens en body)
+        const accessToken = await reply.jwtSign(
+            { userId: newUserId, type: 'user' },
+            { expiresIn: '15m' }
+        )
+        const refreshToken = await reply.jwtSign(
+            { userId: newUserId, type: 'user' },
+            { expiresIn: '7d' }
+        )
 
-        setUserAccessCookie(reply, access)
-        setUserRefreshCookie(reply, refresh)
-
+        // 6. Devolver tokens en el body para que Flutter los guarde
         return reply.code(201).send({
-            message: 'Usuario registrado con Firebase',
+            message: 'Usuario registrado exitosamente',
+            accessToken,
+            refreshToken,
             user: {
                 id: newUserId,
                 firebase_uid: uid,
@@ -115,6 +104,7 @@ export async function firebaseLogin(req: FastifyRequest, reply: FastifyReply) {
     }
 
     try {
+        // 1. Verificar idToken de Firebase
         const decoded = await req.server.firebase.auth().verifyIdToken(idToken, true)
         const { uid, email_verified } = decoded
 
@@ -122,6 +112,7 @@ export async function firebaseLogin(req: FastifyRequest, reply: FastifyReply) {
             return reply.code(401).send({ message: 'Email no verificado en Firebase' })
         }
 
+        // 2. Buscar usuario en la base de datos
         const user = await findUserByFirebaseUid(uid)
 
         if (!user) {
@@ -131,14 +122,21 @@ export async function firebaseLogin(req: FastifyRequest, reply: FastifyReply) {
             })
         }
 
-        const access = await reply.jwtSign({ userId: user.id, type: 'user' })
-        const refresh = await reply.jwtSign({ userId: user.id, type: 'user' }, { expiresIn: '7d' })
+        // 3. Generar tokens JWT propios
+        const accessToken = await reply.jwtSign(
+            { userId: user.id, type: 'user' },
+            { expiresIn: '15m' }
+        )
+        const refreshToken = await reply.jwtSign(
+            { userId: user.id, type: 'user' },
+            { expiresIn: '7d' }
+        )
 
-        setUserAccessCookie(reply, access)
-        setUserRefreshCookie(reply, refresh)
-
+        // 4. Devolver tokens en el body
         return reply.send({
-            message: 'Login con Firebase exitoso',
+            message: 'Login exitoso',
+            accessToken,
+            refreshToken,
             user: {
                 id: user.id,
                 firebase_uid: user.firebase_uid,
@@ -158,13 +156,14 @@ export async function firebaseLogin(req: FastifyRequest, reply: FastifyReply) {
 
 /** REFRESH TOKEN */
 export async function refreshUserToken(req: FastifyRequest, reply: FastifyReply) {
-    const rt = req.cookies?.userRefreshToken
-    if (!rt) {
+    const { refreshToken } = req.body as { refreshToken?: string }
+    
+    if (!refreshToken) {
         return reply.code(401).send({ message: 'Falta refresh token' })
     }
 
     try {
-        const payload = req.server.jwt.verify(rt) as { userId?: number; type?: string }
+        const payload = req.server.jwt.verify(refreshToken) as { userId?: number; type?: string }
         const userId = payload?.userId
 
         if (!userId || payload.type !== 'user') {
@@ -176,21 +175,35 @@ export async function refreshUserToken(req: FastifyRequest, reply: FastifyReply)
             return reply.code(401).send({ message: 'Usuario no encontrado' })
         }
 
-        const newAccess = await reply.jwtSign({ userId, type: 'user' })
-        const newRefresh = await reply.jwtSign({ userId, type: 'user' }, { expiresIn: '7d' })
+        // Generar nuevos tokens
+        const newAccessToken = await reply.jwtSign(
+            { userId, type: 'user' },
+            { expiresIn: '15m' }
+        )
+        const newRefreshToken = await reply.jwtSign(
+            { userId, type: 'user' },
+            { expiresIn: '7d' }
+        )
 
-        setUserAccessCookie(reply, newAccess)
-        setUserRefreshCookie(reply, newRefresh)
-
-        return reply.send({ message: 'Token renovado' })
-    } catch {
+        return reply.send({
+            message: 'Token renovado',
+            accessToken: newAccessToken,
+            refreshToken: newRefreshToken
+        })
+    } catch (err: any) {
+        if (err.name === 'TokenExpiredError') {
+            return reply.code(403).send({ 
+                message: 'Refresh token expirado',
+                code: 'REFRESH_TOKEN_EXPIRED'
+            })
+        }
         return reply.code(403).send({ message: 'Refresh token inválido' })
     }
 }
 
 /** LOGOUT */
 export async function logoutUser(_req: FastifyRequest, reply: FastifyReply) {
-    reply.clearCookie('userToken', { path: '/' })
-    reply.clearCookie('userRefreshToken', { path: '/' })
+    // Para móvil con JWT stateless, el logout es solo del lado del cliente
+    // El cliente debe eliminar los tokens de su almacenamiento seguro
     return reply.send({ message: 'Sesión cerrada' })
 }

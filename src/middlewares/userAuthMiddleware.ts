@@ -3,28 +3,42 @@ import { findUserById } from '../models/user'
 
 export async function protectUserRoute(req: FastifyRequest, reply: FastifyReply) {
     try {
-        // Verifica la cookie userToken
-        const token = req.cookies?.userToken
-        if (!token) {
-            return reply.code(401).send({ message: 'Token no proporcionado' })
+        // Obtener token del header Authorization
+        const authHeader = req.headers.authorization
+        
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return reply.code(401).send({ 
+                message: 'No autorizado. Debe incluir header: Authorization: Bearer <token>' 
+            })
         }
 
+        // Extraer el token (remover "Bearer ")
+        const token = authHeader.substring(7)
+        
+        // Verificar el token
         const payload = req.server.jwt.verify(token) as { userId?: number; type?: string }
-        const userId = payload?.userId
-
-        if (!userId || payload.type !== 'user') {
+        
+        if (!payload.userId || payload.type !== 'user') {
             return reply.code(401).send({ message: 'Token inválido' })
         }
-
-        const user = await findUserById(userId)
+        
+        // Buscar el usuario en la base de datos
+        const user = await findUserById(payload.userId)
         if (!user) {
             return reply.code(401).send({ message: 'Usuario no encontrado' })
         }
-
-        // Adjuntar user a la request
-        (req as any).user = user
-
-    } catch {
-        return reply.code(401).send({ message: 'Token inválido o ausente' })
+        
+        // Adjuntar usuario a la request para usarlo en los controladores
+        ;(req as any).user = user
+        
+    } catch (err: any) {
+        if (err.name === 'TokenExpiredError') {
+            return reply.code(401).send({ 
+                message: 'Token expirado',
+                code: 'TOKEN_EXPIRED'
+            })
+        }
+        
+        return reply.code(401).send({ message: 'Token inválido' })
     }
 }

@@ -1,4 +1,3 @@
-// src/plugins/firebaseAdmin.ts
 import type { FastifyInstance } from 'fastify'
 import admin from 'firebase-admin'
 import fs from 'fs'
