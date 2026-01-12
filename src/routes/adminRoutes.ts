@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { protectAdminRoute } from '../middlewares/authMiddleware'
+import { protectAdminRoute } from '../middlewares/authMiddleware.js'
 import {
     listAdmins,
     getMyAdminProfile,
@@ -7,7 +7,7 @@ import {
     createNewAdmin,
     updateAdminProfile,
     deleteAdmin
-} from '../controllers/adminController'
+} from '../controllers/adminController.js'
 
 // Middleware: solo el dueño del perfil puede acceder
 async function onlyAdminOwner(req: FastifyRequest, reply: FastifyReply) {

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { pool } from '../db/db'
+import { pool } from '../db/db.js'
 
 export default async function healthDb(app: FastifyInstance) {
     app.get('/db-health', async () => {

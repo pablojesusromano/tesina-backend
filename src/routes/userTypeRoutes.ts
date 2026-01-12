@@ -6,9 +6,9 @@ import {
     createNewUserType,
     updateUserTypeById,
     deleteUserTypeById
-} from '../controllers/userTypeController'
-import { protectAdminRoute } from '../middlewares/authMiddleware'
-import { validateUserType, validateIdParam } from '../middlewares/validateMiddleware'
+} from '../controllers/userTypeController.js'
+import { protectAdminRoute } from '../middlewares/authMiddleware.js'
+import { validateUserType, validateIdParam } from '../middlewares/validateMiddleware.js'
 
 export default async function userTypesRoutes(app: FastifyInstance) {
     // ============================================
