@@ -1,13 +1,14 @@
+import 'dotenv/config'
+
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import jwt from '@fastify/jwt'
 import cookie from '@fastify/cookie'
-import 'dotenv/config'
 
 import healthDb from './routes/healthDb.js'
 import authRoutes from './routes/authRoutes.js'
 import userAuthRoutes from './routes/userAuthRoutes.js'
-    import userTypesRoutes from './routes/userTypeRoutes.js'
+import userTypesRoutes from './routes/userTypeRoutes.js'
 import usersRoutes from './routes/userRoutes.js'
 
 import firebaseAdmin from './plugins/firebaseAdmin.js'
