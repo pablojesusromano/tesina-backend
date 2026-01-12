@@ -8,7 +8,7 @@ import {
     deleteUserType,
     userTypeNameExists,
     getCommonUserTypes
-} from '../models/userType'
+} from '../models/userType.js'
 
 // GET /user-types - Obtener todos los tipos de usuario
 export async function getUserTypes(_req: FastifyRequest, reply: FastifyReply) {

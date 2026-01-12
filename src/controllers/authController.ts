@@ -1,6 +1,6 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import bcrypt from 'bcryptjs'
-import { findAdminByEmailOrUsername, createAdmin, findAdminById } from '../models/admin'
+import { findAdminByEmailOrUsername, createAdmin, findAdminById } from '../models/admin.js'
 
 const isProd = process.env.NODE_ENV === 'production'
 
