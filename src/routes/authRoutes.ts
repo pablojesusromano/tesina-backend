@@ -4,8 +4,8 @@ import {
     loginAdmin,
     refreshAdminToken,
     logoutAdmin
-} from '../controllers/authController.js'
-import { protectAdminRoute } from '../middlewares/authMiddleware.js'
+} from '../controllers/authController'
+import { protectAdminRoute } from '../middlewares/authMiddleware'
 
 export default async function authRoutes(app: FastifyInstance) {
     // Registro de admin (proteger en producción)

@@ -1,4 +1,4 @@
-import { pool } from '../db/db.js'
+import { pool } from '../db/db'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 
 export interface Admin {

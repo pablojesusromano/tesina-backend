@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { findUserById } from '../models/user.js'
+import { findUserById } from '../models/user'
 
 export async function protectUserRoute(req: FastifyRequest, reply: FastifyReply) {
     try {

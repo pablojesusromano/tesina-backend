@@ -1,6 +1,6 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import bcrypt from 'bcryptjs'
-import { pool } from '../db/db.js'
+import { pool } from '../db/db'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 import {
     findAdminById,
@@ -9,8 +9,8 @@ import {
     createAdmin,
     updateAdmin,
     deleteAdmin as deleteAdminModel
-} from '../models/admin.js'
-import type { Admin } from '../models/admin.js'
+} from '../models/admin'
+import type { Admin } from '../models/admin'
 
 function sanitizeAdmin(admin: Admin) {
     const { password_hash, ...safe } = admin

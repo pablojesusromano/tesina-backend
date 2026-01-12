@@ -1,11 +1,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { protectUserRoute } from '../middlewares/userAuthMiddleware.js'
+import { protectUserRoute } from '../middlewares/userAuthMiddleware'
 import {
     listUsers,
     getMe,
     getUserById,
     updateUser
-} from '../controllers/userController.js'
+} from '../controllers/userController'
 
 // Middleware: solo el dueño del perfil puede acceder
 async function onlyOwner(req: FastifyRequest, reply: FastifyReply) {

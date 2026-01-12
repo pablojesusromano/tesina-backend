@@ -1,5 +1,5 @@
-import { pool } from '../db/db.js'
-import { createUserType, userTypeNameExists } from '../models/userType.js'
+import { pool } from '../db/db'
+import { createUserType, userTypeNameExists } from '../models/userType'
 
 // Datos por defecto para roles
 const defaultRoles = [
