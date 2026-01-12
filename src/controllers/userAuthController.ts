@@ -108,9 +108,9 @@ export async function firebaseLogin(req: FastifyRequest, reply: FastifyReply) {
         const decoded = await req.server.firebase.auth().verifyIdToken(idToken, true)
         const { uid, email_verified } = decoded
 
-        if (email_verified === false) {
-            return reply.code(401).send({ message: 'Email no verificado en Firebase' })
-        }
+        // if (email_verified === false) {
+        //     return reply.code(401).send({ message: 'Email no verificado en Firebase' })
+        // }
 
         // 2. Buscar usuario en la base de datos
         const user = await findUserByFirebaseUid(uid)
