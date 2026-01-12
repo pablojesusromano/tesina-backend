@@ -1,6 +1,6 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { findUserByFirebaseUid, findUserByUsername, createUser, findUserById } from '../models/user'
-import { findUserTypeByName } from '../models/userType'
+import { findUserByFirebaseUid, findUserByUsername, createUser, findUserById } from '../models/user.js'
+import { findUserTypeByName } from '../models/userType.js'
 
 /** REGISTRO con Firebase */
 export async function firebaseRegister(req: FastifyRequest, reply: FastifyReply) {

@@ -4,8 +4,8 @@ import {
     firebaseLogin,
     refreshUserToken,
     logoutUser
-} from '../controllers/userAuthController'
-import { protectUserRoute } from '../middlewares/userAuthMiddleware'
+} from '../controllers/userAuthController.js'
+import { protectUserRoute } from '../middlewares/userAuthMiddleware.js'
 
 export default async function userAuthRoutes(app: FastifyInstance) {
     // Registro con Firebase

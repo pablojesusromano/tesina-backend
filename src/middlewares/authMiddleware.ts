@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { findAdminById } from '../models/admin'
+import { findAdminById } from '../models/admin.js'
 
 // Middleware para proteger rutas de ADMINS (sistema de gestión)
 export async function protectAdminRoute(req: FastifyRequest, reply: FastifyReply) {

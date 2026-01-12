@@ -4,14 +4,14 @@ import jwt from '@fastify/jwt'
 import cookie from '@fastify/cookie'
 import 'dotenv/config'
 
-import healthDb from './routes/healthDb'
-import authRoutes from './routes/authRoutes'
-import userAuthRoutes from './routes/userAuthRoutes'
-    import userTypesRoutes from './routes/userTypeRoutes'
-import usersRoutes from './routes/userRoutes'
+import healthDb from './routes/healthDb.js'
+import authRoutes from './routes/authRoutes.js'
+import userAuthRoutes from './routes/userAuthRoutes.js'
+    import userTypesRoutes from './routes/userTypeRoutes.js'
+import usersRoutes from './routes/userRoutes.js'
 
-import firebaseAdmin from './plugins/firebaseAdmin'
-import adminRoutes from './routes/adminRoutes'
+import firebaseAdmin from './plugins/firebaseAdmin.js'
+import adminRoutes from './routes/adminRoutes.js'
 
 
 const isProd = process.env.NODE_ENV === 'production'

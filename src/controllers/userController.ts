@@ -1,9 +1,9 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { pool } from '../db/db'
+import { pool } from '../db/db.js'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2'
-import { findUserById, findUserByUsername, updateUser as updateUserModel } from '../models/user'
-import { findUserTypeById } from '../models/userType'
-import type { User } from '../models/user'
+import { findUserById, findUserByUsername, updateUser as updateUserModel } from '../models/user.js'
+import { findUserTypeById } from '../models/userType.js'
+import type { User } from '../models/user.js'
 
 function sanitizeUser(u: User) {
     // Los users ya no tienen datos sensibles, pero por consistencia:
