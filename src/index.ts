@@ -10,6 +10,7 @@ import authRoutes from './routes/authRoutes.js'
 import userAuthRoutes from './routes/userAuthRoutes.js'
 import userTypesRoutes from './routes/userTypeRoutes.js'
 import usersRoutes from './routes/userRoutes.js'
+import postRoutes from './routes/postRoutes.js'
 
 import firebaseAdmin from './plugins/firebaseAdmin.js'
 import adminRoutes from './routes/adminRoutes.js'
@@ -72,6 +73,7 @@ await app.register(healthDb, { prefix: '/health' })
 await app.register(adminRoutes, { prefix: '/api/admins' })  // Gestión de admins
 await app.register(usersRoutes, { prefix: '/api/users' })  // Gestión de usuarios
 await app.register(userTypesRoutes, { prefix: '/api/user-types' })
+await app.register(postRoutes, { prefix: '/api/posts' })
 
 const port = Number(process.env.PORT ?? 3000)
 const host = process.env.HOST ?? '127.0.0.1'

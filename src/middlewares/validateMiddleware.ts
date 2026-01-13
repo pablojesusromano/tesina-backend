@@ -1,3 +1,5 @@
+// src/middlewares/validateMiddleware.ts
+
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 
@@ -89,6 +91,32 @@ const userTypeSchema = z.object({
 })
 
 // ============================================
+// SCHEMAS PARA POSTS
+// ============================================
+
+export const createPostSchema = z.object({
+    title: z.string()
+        .min(3, { message: 'El título debe tener al menos 3 caracteres' })
+        .max(200, { message: 'El título no puede superar los 200 caracteres' }),
+    description: z.string()
+        .min(10, { message: 'La descripción debe tener al menos 10 caracteres' })
+        .max(5000, { message: 'La descripción no puede superar los 5000 caracteres' })
+})
+
+export const updatePostSchema = z.object({
+    title: z.string()
+        .min(3, { message: 'El título debe tener al menos 3 caracteres' })
+        .max(200, { message: 'El título no puede superar los 200 caracteres' })
+        .optional(),
+    description: z.string()
+        .min(10, { message: 'La descripción debe tener al menos 10 caracteres' })
+        .max(5000, { message: 'La descripción no puede superar los 5000 caracteres' })
+        .optional()
+}).refine(data => data.title !== undefined || data.description !== undefined, {
+    message: 'Debes proporcionar al menos un campo para actualizar'
+})
+
+// ============================================
 // MIDDLEWARES
 // ============================================
 
@@ -134,4 +162,18 @@ export async function validateCreateAdmin(req: FastifyRequest) {
 export async function validateUpdateAdmin(req: FastifyRequest) {
     // @ts-ignore
     req.body = updateAdminSchema.parse(req.body)
+}
+
+// ============================================
+// MIDDLEWARES PARA POSTS
+// ============================================
+
+export async function validateCreatePost(req: FastifyRequest) {
+    // @ts-ignore
+    req.body = createPostSchema.parse(req.body)
+}
+
+export async function validateUpdatePost(req: FastifyRequest) {
+    // @ts-ignore
+    req.body = updatePostSchema.parse(req.body)
 }
