@@ -12,14 +12,28 @@ import {
 
 // ==================== CREAR POST ====================
 export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
-    const user = (req as any).user
+    // Obtener el usuario (puede ser admin o user)
+    const authType = (req as any).authType
+    let userId: number
+    
+    if (authType === 'admin') {
+        const admin = (req as any).admin
+        // Los admins no pueden crear posts porque no tienen user_id
+        return reply.code(403).send({ 
+            message: 'Los administradores no pueden crear publicaciones. Use una cuenta de usuario.' 
+        })
+    } else {
+        const user = (req as any).user
+        userId = user.id
+    }
+
     const { title, description } = req.body as {
         title: string
         description: string
     }
 
     try {
-        const postId = await createPost(user.id, title, description)
+        const postId = await createPost(userId, title, description)
 
         if (!postId) {
             return reply.code(500).send({ message: 'Error creando publicación' })
@@ -36,6 +50,7 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
         return reply.code(500).send({ message: 'Error interno del servidor' })
     }
 }
+
 
 // ==================== OBTENER TODOS LOS POSTS (FEED) ====================
 export async function listPosts(req: FastifyRequest, reply: FastifyReply) {
@@ -86,6 +101,15 @@ export async function getPostById(req: FastifyRequest, reply: FastifyReply) {
 
 // ==================== OBTENER MIS POSTS ====================
 export async function getMyPosts(req: FastifyRequest, reply: FastifyReply) {
+    const authType = (req as any).authType
+    
+    if (authType === 'admin') {
+        // Los admins no tienen posts propios
+        return reply.code(403).send({ 
+            message: 'Los administradores no tienen publicaciones propias' 
+        })
+    }
+    
     const user = (req as any).user
     const { page = 1, pageSize = 20 } = req.query as {
         page?: number
@@ -145,7 +169,7 @@ export async function getUserPosts(req: FastifyRequest, reply: FastifyReply) {
 
 // ==================== ACTUALIZAR POST ====================
 export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
-    const user = (req as any).user
+    const authType = (req as any).authType
     const { id } = req.params as { id: string }
     const postId = Number(id)
 
@@ -162,10 +186,17 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
             return reply.code(404).send({ message: 'Publicación no encontrada' })
         }
 
-        // Verificar que el usuario es el creador
-        if (post.user_id !== user.id) {
-            return reply.code(403).send({ message: 'No tienes permiso para editar esta publicación' })
+        // ADMINS pueden editar cualquier post
+        // USERS solo pueden editar sus propios posts
+        if (authType === 'user') {
+            const user = (req as any).user
+            if (post.user_id !== user.id) {
+                return reply.code(403).send({ 
+                    message: 'No tienes permiso para editar esta publicación' 
+                })
+            }
         }
+        // Si es admin, puede editar cualquier post (no hay verificación adicional)
 
         // Actualizar
         const success = await updatePost(postId, title, description)
@@ -188,7 +219,7 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
 
 // ==================== ELIMINAR POST ====================
 export async function deletePostById(req: FastifyRequest, reply: FastifyReply) {
-    const user = (req as any).user
+    const authType = (req as any).authType
     const { id } = req.params as { id: string }
     const postId = Number(id)
 
@@ -200,10 +231,17 @@ export async function deletePostById(req: FastifyRequest, reply: FastifyReply) {
             return reply.code(404).send({ message: 'Publicación no encontrada' })
         }
 
-        // Verificar que el usuario es el creador
-        if (post.user_id !== user.id) {
-            return reply.code(403).send({ message: 'No tienes permiso para eliminar esta publicación' })
+        // ADMINS pueden eliminar cualquier post
+        // USERS solo pueden eliminar sus propios posts
+        if (authType === 'user') {
+            const user = (req as any).user
+            if (post.user_id !== user.id) {
+                return reply.code(403).send({ 
+                    message: 'No tienes permiso para eliminar esta publicación' 
+                })
+            }
         }
+        // Si es admin, puede eliminar cualquier post (no hay verificación adicional)
 
         // Eliminar
         const success = await deletePost(postId)

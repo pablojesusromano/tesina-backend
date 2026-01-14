@@ -1,3 +1,4 @@
+// src/routes/postRoutes.ts
 import type { FastifyInstance } from 'fastify'
 import {
     createNewPost,
@@ -8,12 +9,12 @@ import {
     updatePostById,
     deletePostById
 } from '../controllers/postController.js'
-import { protectUserRoute } from '../middlewares/userAuthMiddleware.js'
-import { validateCreatePost, validateUpdatePost, validateIdParam } from '../middlewares/validateMiddleware.js'
+import { protectUserOrAdminRoute } from '../middlewares/authMiddleware.js'
+import { validateCreatePost, validateUpdatePost, validateIdParam, validateUserIdParam } from '../middlewares/validateMiddleware.js'
 
 export default async function postRoutes(app: FastifyInstance) {
-    // Todas las rutas requieren autenticación de usuario
-    app.addHook('preHandler', protectUserRoute)
+    // Todas las rutas aceptan ADMINS o USERS
+    app.addHook('preHandler', protectUserOrAdminRoute)
 
     // ==================== RUTAS PÚBLICAS (autenticadas) ====================
     
@@ -24,7 +25,7 @@ export default async function postRoutes(app: FastifyInstance) {
     app.get('/:id', { preHandler: validateIdParam }, getPostById)
     
     // GET /posts/user/:userId - Ver publicaciones de un usuario
-    app.get('/user/:userId', { preHandler: validateIdParam }, getUserPosts)
+    app.get('/user/:userId', { preHandler: validateUserIdParam }, getUserPosts)
 
     // ==================== RUTAS PROPIAS ====================
     

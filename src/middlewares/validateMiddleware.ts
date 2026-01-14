@@ -154,6 +154,15 @@ export async function validateIdParam(req: FastifyRequest, reply: FastifyReply) 
     }
 }
 
+export async function validateUserIdParam(req: FastifyRequest, reply: FastifyReply) {
+    const { userId } = req.params as { userId: string }
+    const numId = parseInt(userId)
+
+    if (isNaN(numId) || numId <= 0) {
+        return reply.code(400).send({ message: 'ID de usuario inválido' })
+    }
+}
+
 export async function validateCreateAdmin(req: FastifyRequest) {
     // @ts-ignore
     req.body = createAdminSchema.parse(req.body)
