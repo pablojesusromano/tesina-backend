@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { protectUserRoute } from '../middlewares/userAuthMiddleware.js'
+import { protectUserOrAdminRoute } from '../middlewares/authMiddleware.js'
 import {
     listUsers,
     getMe,
@@ -20,7 +20,7 @@ async function onlyOwner(req: FastifyRequest, reply: FastifyReply) {
 
 export default async function usersRoutes(app: FastifyInstance) {
     // Todas requieren autenticación de user móvil
-    app.addHook('preHandler', protectUserRoute)
+    app.addHook('preHandler', protectUserOrAdminRoute)
 
     // GET /users - Listar usuarios (público para users autenticados - para rankings, etc)
     app.get('/', listUsers)

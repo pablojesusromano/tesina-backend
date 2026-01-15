@@ -116,6 +116,105 @@ export const updatePostSchema = z.object({
     message: 'Debes proporcionar al menos un campo para actualizar'
 })
 
+
+// ============================================
+// SCHEMAS PARA SPECIES
+// ============================================
+
+
+export const createSpeciesSchema = z.object({
+    name: z.string()
+        .min(2, { message: 'El nombre debe tener al menos 2 caracteres' })
+        .max(100, { message: 'El nombre no puede superar los 100 caracteres' }),
+    description: z.string()
+        .min(10, { message: 'La descripción debe tener al menos 10 caracteres' })
+        .max(2000, { message: 'La descripción no puede superar los 2000 caracteres' }),
+    how_to_recognise: z.string()
+        .min(10, { message: 'La información de reconocimiento debe tener al menos 10 caracteres' })
+        .max(2000, { message: 'La información de reconocimiento no puede superar los 2000 caracteres' }),
+    curious_info: z.string()
+        .min(10, { message: 'La información curiosa debe tener al menos 10 caracteres' })
+        .max(2000, { message: 'La información curiosa no puede superar los 2000 caracteres' })
+        .optional(),
+    sighting_start_month: z.number()
+        .int({ message: 'El mes debe ser un número entero' })
+        .min(1, { message: 'El mes debe estar entre 1 y 12' })
+        .max(12, { message: 'El mes debe estar entre 1 y 12' })
+        .optional(),
+    sighting_end_month: z.number()
+        .int({ message: 'El mes debe ser un número entero' })
+        .min(1, { message: 'El mes debe estar entre 1 y 12' })
+        .max(12, { message: 'El mes debe estar entre 1 y 12' })
+        .optional(),
+    high_season_specimens: z.number()
+        .int({ message: 'La cantidad de ejemplares debe ser un número entero' })
+        .positive({ message: 'La cantidad de ejemplares debe ser positiva' })
+        .optional()
+}).refine(
+    data => {
+        // Si ambos meses están presentes, validar que start <= end
+        if (data.sighting_start_month && data.sighting_end_month) {
+            return data.sighting_start_month <= data.sighting_end_month
+        }
+        return true
+    },
+    {
+        message: 'El mes de inicio debe ser menor o igual al mes de fin',
+        path: ['sighting_start_month']
+    }
+)
+
+export const updateSpeciesSchema = z.object({
+    name: z.string()
+        .min(2, { message: 'El nombre debe tener al menos 2 caracteres' })
+        .max(100, { message: 'El nombre no puede superar los 100 caracteres' })
+        .optional(),
+    description: z.string()
+        .min(10, { message: 'La descripción debe tener al menos 10 caracteres' })
+        .max(2000, { message: 'La descripción no puede superar los 2000 caracteres' })
+        .optional(),
+    how_to_recognise: z.string()
+        .min(10, { message: 'La información de reconocimiento debe tener al menos 10 caracteres' })
+        .max(2000, { message: 'La información de reconocimiento no puede superar los 2000 caracteres' })
+        .optional(),
+    curious_info: z.string()
+        .min(10, { message: 'El dato curioso debe tener al menos 10 caracteres' })
+        .max(2000, { message: 'El dato curioso no puede superar los 2000 caracteres' })
+        .optional()
+        .nullable(),
+    sighting_start_month: z.number()
+        .int({ message: 'El mes debe ser un número entero' })
+        .min(1, { message: 'El mes debe estar entre 1 y 12' })
+        .max(12, { message: 'El mes debe estar entre 1 y 12' })
+        .optional()
+        .nullable(),
+    sighting_end_month: z.number()
+        .int({ message: 'El mes debe ser un número entero' })
+        .min(1, { message: 'El mes debe estar entre 1 y 12' })
+        .max(12, { message: 'El mes debe estar entre 1 y 12' })
+        .optional()
+        .nullable(),
+    high_season_specimens: z.number()
+        .int({ message: 'La cantidad de ejemplares debe ser un número entero' })
+        .positive({ message: 'La cantidad de ejemplares debe ser positiva' })
+        .optional()
+        .nullable()
+}).refine(data => Object.keys(data).length > 0, {
+    message: 'Debes proporcionar al menos un campo para actualizar'
+}).refine(
+    data => {
+        // Si ambos meses están presentes, validar que start <= end
+        if (data.sighting_start_month && data.sighting_end_month) {
+            return data.sighting_start_month <= data.sighting_end_month
+        }
+        return true
+    },
+    {
+        message: 'El mes de inicio debe ser menor o igual al mes de fin',
+        path: ['sighting_start_month']
+    }
+)
+
 // ============================================
 // MIDDLEWARES
 // ============================================
@@ -185,4 +284,18 @@ export async function validateCreatePost(req: FastifyRequest) {
 export async function validateUpdatePost(req: FastifyRequest) {
     // @ts-ignore
     req.body = updatePostSchema.parse(req.body)
+}
+
+// ============================================
+// MIDDLEWARES PARA SPECIES
+// ============================================
+
+export async function validateCreateSpecies(req: FastifyRequest) {
+    // @ts-ignore
+    req.body = createSpeciesSchema.parse(req.body)
+}
+
+export async function validateUpdateSpecies(req: FastifyRequest) {
+    // @ts-ignore
+    req.body = updateSpeciesSchema.parse(req.body)
 }
