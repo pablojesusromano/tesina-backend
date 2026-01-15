@@ -55,8 +55,25 @@ export async function protectUserOrAdminRoute(req: FastifyRequest, reply: Fastif
         }
     }
 
-    // Intentar autenticación de USER (Bearer token)
     const authHeader = req.headers.authorization
+
+    // ADMIN por Bearer token (para Postman) (Puede comentarse luego)
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7)
+        const payload = req.server.jwt.verify(token) as { adminId?: number; type?: string }
+
+        if (payload.adminId && payload.type === 'admin') {
+            const admin = await findAdminById(payload.adminId)
+            if (admin) {
+                ;(req as any).admin = admin
+                ;(req as any).authType = 'admin'
+                return
+            }
+        }
+    }
+
+    // Intentar autenticación de USER (Bearer token)
+
     if (authHeader && authHeader.startsWith('Bearer ')) {
         try {
             const token = authHeader.substring(7)
