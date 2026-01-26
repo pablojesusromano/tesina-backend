@@ -1,5 +1,6 @@
 import { pool } from '../db/db.js'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2'
+import { getPostImages, type PostImage } from './postImage.js'
 
 export interface Post {
     id: number
@@ -10,11 +11,11 @@ export interface Post {
     updated_at: Date
 }
 
-// Interfaz extendida con datos del usuario
-export interface PostWithUser extends Post {
+export interface PostWithUserAndImages extends Post {
     user_name: string
     user_username: string
     user_image: string | null
+    images: PostImage[]
 }
 
 // ==================== CREAR POST ====================
@@ -25,8 +26,7 @@ export async function createPost(
 ): Promise<number | null> {
     try {
         const [result] = await pool.query<ResultSetHeader>(
-            `INSERT INTO posts (user_id, title, description)
-             VALUES (?, ?, ?)`,
+            `INSERT INTO posts (user_id, title, description) VALUES (?, ?, ?)`,
             [userId, title, description]
         )
         return result.insertId
@@ -40,8 +40,8 @@ export async function createPost(
 export async function getAllPosts(
     limit: number = 20,
     offset: number = 0
-): Promise<PostWithUser[]> {
-    const [rows] = await pool.query<(RowDataPacket & PostWithUser)[]>(
+): Promise<PostWithUserAndImages[]> {
+    const [rows] = await pool.query<(RowDataPacket & Post)[]>(
         `SELECT 
             p.id,
             p.title,
@@ -58,12 +58,20 @@ export async function getAllPosts(
          LIMIT ? OFFSET ?`,
         [limit, offset]
     )
-    return rows
+    
+    const postsWithImages = await Promise.all(
+        rows.map(async (post: any) => {
+            const images = await getPostImages(post.id)
+            return { ...post, images } as PostWithUserAndImages
+        })
+    )
+    
+    return postsWithImages
 }
 
 // ==================== OBTENER POST POR ID ====================
-export async function findPostById(postId: number): Promise<PostWithUser | null> {
-    const [rows] = await pool.query<(RowDataPacket & PostWithUser)[]>(
+export async function findPostById(postId: number): Promise<PostWithUserAndImages | null> {
+    const [rows] = await pool.query<(RowDataPacket & Post)[]>(
         `SELECT 
             p.id,
             p.title,
@@ -79,7 +87,14 @@ export async function findPostById(postId: number): Promise<PostWithUser | null>
          WHERE p.id = ?`,
         [postId]
     )
-    return rows[0] ?? null
+    
+    if (rows.length === 0) return null
+    
+    const post = rows[0] as any
+    const images = await getPostImages(postId)
+    post.images = images
+    
+    return post as PostWithUserAndImages
 }
 
 // ==================== OBTENER POSTS DE UN USUARIO ====================
@@ -87,8 +102,8 @@ export async function getPostsByUserId(
     userId: number,
     limit: number = 20,
     offset: number = 0
-): Promise<PostWithUser[]> {
-    const [rows] = await pool.query<(RowDataPacket & PostWithUser)[]>(
+): Promise<PostWithUserAndImages[]> {
+    const [rows] = await pool.query<(RowDataPacket & Post)[]>(
         `SELECT 
             p.id,
             p.title,
@@ -106,7 +121,15 @@ export async function getPostsByUserId(
          LIMIT ? OFFSET ?`,
         [userId, limit, offset]
     )
-    return rows
+    
+    const postsWithImages = await Promise.all(
+        rows.map(async (post: any) => {
+            const images = await getPostImages(post.id)
+            return { ...post, images } as PostWithUserAndImages
+        })
+    )
+    
+    return postsWithImages
 }
 
 // ==================== ACTUALIZAR POST ====================
@@ -162,7 +185,7 @@ export async function countAllPosts(): Promise<number> {
     const [rows] = await pool.query<RowDataPacket[]>(
         'SELECT COUNT(*) as total FROM posts'
     )
-    return rows[0]?.total
+    return rows[0]?.total ?? 0
 }
 
 export async function countPostsByUserId(userId: number): Promise<number> {
@@ -170,5 +193,5 @@ export async function countPostsByUserId(userId: number): Promise<number> {
         'SELECT COUNT(*) as total FROM posts WHERE user_id = ?',
         [userId]
     )
-    return rows[0]?.total
+    return rows[0]?.total ?? 0
 }

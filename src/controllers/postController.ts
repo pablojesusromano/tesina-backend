@@ -1,4 +1,8 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
+import { UPLOADS_BASE_URL, ALLOWED_TYPES, MAX_FILES } from '../config/upload.js'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import {
     createPost,
     getAllPosts,
@@ -9,35 +13,129 @@ import {
     countAllPosts,
     countPostsByUserId
 } from '../models/post.js'
+import { 
+    createPostImage, 
+    deletePostImages
+} from '../models/postImage.js'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // ==================== CREAR POST ====================
 export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
-    // Obtener el usuario (puede ser admin o user)
     const authType = (req as any).authType
-    let userId: number
     
     if (authType === 'admin') {
-        const admin = (req as any).admin
-        // Los admins no pueden crear posts porque no tienen user_id
         return reply.code(403).send({ 
             message: 'Los administradores no pueden crear publicaciones. Use una cuenta de usuario.' 
         })
-    } else {
-        const user = (req as any).user
-        userId = user.id
     }
 
-    const { title, description } = req.body as {
-        title: string
-        description: string
-    }
+    const user = (req as any).user
 
     try {
-        const postId = await createPost(userId, title, description)
+        let title: string | undefined
+        let description: string | undefined
+        const uploadedFiles: { filename: string; filepath: string }[] = []
+
+        // Procesar multipart data
+        const parts = req.parts()
+        
+        for await (const part of parts) {
+            if (part.type === 'field') {
+                if (part.fieldname === 'title') {
+                    title = part.value as string
+                } else if (part.fieldname === 'description') {
+                    description = part.value as string
+                }
+            } else {
+                // Es un archivo
+                if (uploadedFiles.length >= MAX_FILES) {
+                    return reply.code(400).send({ 
+                        message: `Máximo ${MAX_FILES} imágenes permitidas` 
+                    })
+                }
+
+                // Validar tipo
+                if (!ALLOWED_TYPES.includes(part.mimetype)) {
+                    return reply.code(400).send({ 
+                        message: 'Tipo de archivo no permitido. Solo JPG, PNG, WebP o HEIC' 
+                    })
+                }
+
+                // Generar nombre único
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+                const ext = path.extname(part.filename)
+                const filename = `${uniqueSuffix}${ext}`
+                const filepath = path.join(__dirname, '../../uploads/posts', filename)
+
+                // Crear directorio si no existe
+                const uploadDir = path.join(__dirname, '../../uploads/posts')
+                if (!fs.existsSync(uploadDir)) {
+                    fs.mkdirSync(uploadDir, { recursive: true })
+                }
+
+                // Guardar archivo
+                const buffer = await part.toBuffer()
+                fs.writeFileSync(filepath, buffer)
+
+                uploadedFiles.push({ filename, filepath })
+            }
+        }
+
+        // Validar campos
+        if (!title || !description) {
+            // Limpiar archivos subidos
+            uploadedFiles.forEach(f => {
+                if (fs.existsSync(f.filepath)) fs.unlinkSync(f.filepath)
+            })
+            return reply.code(400).send({ 
+                message: 'Título y descripción son obligatorios' 
+            })
+        }
+
+        if (uploadedFiles.length === 0) {
+            return reply.code(400).send({ 
+                message: 'Debes subir al menos 1 imagen' 
+            })
+        }
+
+        if (title.length < 3 || title.length > 200) {
+            uploadedFiles.forEach(f => {
+                if (fs.existsSync(f.filepath)) fs.unlinkSync(f.filepath)
+            })
+            return reply.code(400).send({ 
+                message: 'El título debe tener entre 3 y 200 caracteres' 
+            })
+        }
+
+        if (description.length < 10 || description.length > 5000) {
+            uploadedFiles.forEach(f => {
+                if (fs.existsSync(f.filepath)) fs.unlinkSync(f.filepath)
+            })
+            return reply.code(400).send({ 
+                message: 'La descripción debe tener entre 10 y 5000 caracteres' 
+            })
+        }
+
+        // Crear post
+        const postId = await createPost(user.id, title, description)
 
         if (!postId) {
+            // Limpiar archivos
+            uploadedFiles.forEach(f => {
+                if (fs.existsSync(f.filepath)) fs.unlinkSync(f.filepath)
+            })
             return reply.code(500).send({ message: 'Error creando publicación' })
         }
+
+        // Guardar rutas de imágenes
+        await Promise.all(
+            uploadedFiles.map((file, index) => {
+                const imagePath = `${UPLOADS_BASE_URL}/${file.filename}`
+                return createPostImage(postId, imagePath, index)
+            })
+        )
 
         const newPost = await findPostById(postId)
 
@@ -224,15 +322,12 @@ export async function deletePostById(req: FastifyRequest, reply: FastifyReply) {
     const postId = Number(id)
 
     try {
-        // Verificar que el post existe
         const post = await findPostById(postId)
 
         if (!post) {
             return reply.code(404).send({ message: 'Publicación no encontrada' })
         }
 
-        // ADMINS pueden eliminar cualquier post
-        // USERS solo pueden eliminar sus propios posts
         if (authType === 'user') {
             const user = (req as any).user
             if (post.user_id !== user.id) {
@@ -241,9 +336,11 @@ export async function deletePostById(req: FastifyRequest, reply: FastifyReply) {
                 })
             }
         }
-        // Si es admin, puede eliminar cualquier post (no hay verificación adicional)
 
-        // Eliminar
+        // Eliminar imágenes (archivos y BD)
+        await deletePostImages(postId)
+
+        // Eliminar post
         const success = await deletePost(postId)
 
         if (!success) {

@@ -4,6 +4,11 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import jwt from '@fastify/jwt'
 import cookie from '@fastify/cookie'
+import fastifyStatic from '@fastify/static'
+
+import path from 'path'
+import { fileURLToPath } from 'url'
+import multipartPlugin from './plugins/multipart.js'
 
 import healthDb from './routes/healthDb.js'
 import authRoutes from './routes/authRoutes.js'
@@ -15,7 +20,6 @@ import speciesRoutes from './routes/speciesRoutes.js'
 
 import firebaseAdmin from './plugins/firebaseAdmin.js'
 import adminRoutes from './routes/adminRoutes.js'
-
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -34,6 +38,9 @@ const app = Fastify({
         }
 })
 
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
 await app.register(cors, {
     origin: true,
     credentials: true
@@ -50,6 +57,13 @@ await app.register(jwt, {
         cookieName: 'token', // nombre de la cookie con el access token
         signed: false
     }
+})
+
+await app.register(multipartPlugin)
+
+await app.register(fastifyStatic, {
+    root: path.join(__dirname, '../uploads'),
+    prefix: '/uploads/'
 })
 
 // helper para proteger rutas
