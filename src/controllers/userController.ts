@@ -69,17 +69,10 @@ export async function getUserById(req: FastifyRequest, reply: FastifyReply) {
     return reply.send(sanitizeUser(user))
 }
 
-/** PATCH /users/:id - Actualizar perfil (solo el dueño) */
+/** PATCH /users/me - Actualizar mi perfil */
 export async function updateUser(req: FastifyRequest, reply: FastifyReply) {
-    const { id } = req.params as { id: string }
-    const userId = Number(id)
-
     const auth = (req as any).user
-    
-    // Solo el dueño puede actualizar
-    if (auth?.id !== userId) {
-        return reply.code(403).send({ message: 'Acceso denegado' })
-    }
+    const userId = auth.id
 
     const body = (req.body as any) ?? {}
     const updateData: Partial<User> = {}
