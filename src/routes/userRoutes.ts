@@ -17,9 +17,9 @@ export default async function usersRoutes(app: FastifyInstance) {
     // GET /users/me - Mi perfil
     app.get('/me', getMe)
 
-    // GET /users/:id - Ver perfil de otro usuario (público para rankings)
-    app.get('/:id', getUserById)
-
     // PATCH /users/:id - Actualizar perfil (solo el dueño)
     app.patch('/me', updateUser)
+
+    // GET /users/:id - Ver perfil de otro usuario (público para rankings)
+    app.get('/:id', getUserById)
 }
