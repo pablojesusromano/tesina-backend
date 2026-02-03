@@ -1,4 +1,3 @@
-// src/routes/postRoutes.ts
 import type { FastifyInstance } from 'fastify'
 import {
     createNewPost,
@@ -7,10 +6,11 @@ import {
     getMyPosts,
     getUserPosts,
     updatePostById,
+    updatePostStatusById,
     deletePostById
 } from '../controllers/postController.js'
 import { protectUserOrAdminRoute } from '../middlewares/authMiddleware.js'
-import { validateUpdatePost, validateIdParam, validateUserIdParam } from '../middlewares/validateMiddleware.js'
+import { validateUpdatePost, validateIdParam, validateUserIdParam, validateStatusUpdate } from '../middlewares/validateMiddleware.js'
 
 export default async function postRoutes(app: FastifyInstance) {
     // Todas las rutas aceptan ADMINS o USERS
@@ -39,6 +39,11 @@ export default async function postRoutes(app: FastifyInstance) {
     app.patch('/:id', {
         preHandler: [validateIdParam, validateUpdatePost]
     }, updatePostById)
+
+    // PATCH /posts/:id - Actualizar publicación (solo el creador)
+    app.patch('/:id/status', {
+        preHandler: [validateIdParam, validateStatusUpdate]
+    }, updatePostStatusById)
     
     // DELETE /posts/:id - Eliminar publicación (solo el creador)
     app.delete('/:id', {

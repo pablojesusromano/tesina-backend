@@ -1,17 +1,20 @@
 import { pool } from '../db/db.js'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 import { getPostImages, type PostImage } from './postImage.js'
+import { findStatusByName, resolveStatusIds, type PostStatusName } from './postStatus.js'
 
 export interface Post {
     id: number
     title: string
     description: string
     user_id: number
+    status_id: number
     created_at: Date
     updated_at: Date
 }
 
 export interface PostWithUserAndImages extends Post {
+    status_name: PostStatusName
     user_name: string
     user_username: string
     user_image: string | null
@@ -25,9 +28,12 @@ export async function createPost(
     description: string
 ): Promise<number | null> {
     try {
+        const borrador = await findStatusByName('BORRADOR')
+        if (!borrador) throw new Error('Status BORRADOR no encontrado en post_status')
+
         const [result] = await pool.query<ResultSetHeader>(
-            `INSERT INTO posts (user_id, title, description) VALUES (?, ?, ?)`,
-            [userId, title, description]
+            `INSERT INTO posts (user_id, title, description, status_id) VALUES (?, ?, ?, ?)`,
+            [userId, title, description, borrador.id]
         )
         return result.insertId
     } catch (error) {
@@ -39,24 +45,34 @@ export async function createPost(
 // ==================== OBTENER TODOS LOS POSTS ====================
 export async function getAllPosts(
     limit: number = 20,
-    offset: number = 0
+    offset: number = 0,
+    statuses: PostStatusName[] = ['ACTIVO']
 ): Promise<PostWithUserAndImages[]> {
+    const statusIds = await resolveStatusIds(statuses)
+    if (!statusIds.length) return []
+
+    const ph = statusIds.map(() => '?').join(', ')
+
     const [rows] = await pool.query<(RowDataPacket & Post)[]>(
         `SELECT 
             p.id,
             p.title,
             p.description,
             p.user_id,
+            p.status_id,
+            ps.name as status_name,
             p.created_at,
             p.updated_at,
             u.name as user_name,
             u.username as user_username,
             u.image as user_image
          FROM posts p
+         INNER JOIN post_status ps ON p.status_id = ps.id
          INNER JOIN users u ON p.user_id = u.id
+         WHERE p.status_id IN (${ph})
          ORDER BY p.created_at DESC
          LIMIT ? OFFSET ?`,
-        [limit, offset]
+        [...statusIds, limit, offset]
     )
     
     const postsWithImages = await Promise.all(
@@ -77,12 +93,15 @@ export async function findPostById(postId: number): Promise<PostWithUserAndImage
             p.title,
             p.description,
             p.user_id,
+            p.status_id,
+            ps.name as status_name,
             p.created_at,
             p.updated_at,
             u.name as user_name,
             u.username as user_username,
             u.image as user_image
          FROM posts p
+         INNER JOIN post_status ps ON p.status_id = ps.id
          INNER JOIN users u ON p.user_id = u.id
          WHERE p.id = ?`,
         [postId]
@@ -101,25 +120,34 @@ export async function findPostById(postId: number): Promise<PostWithUserAndImage
 export async function getPostsByUserId(
     userId: number,
     limit: number = 20,
-    offset: number = 0
+    offset: number = 0,
+    statuses: PostStatusName[] = ['ACTIVO']
 ): Promise<PostWithUserAndImages[]> {
+    const statusIds = await resolveStatusIds(statuses)
+    if (!statusIds.length) return []
+
+    const ph = statusIds.map(() => '?').join(', ')
+
     const [rows] = await pool.query<(RowDataPacket & Post)[]>(
         `SELECT 
             p.id,
             p.title,
             p.description,
             p.user_id,
+            p.status_id,
+            ps.name as status_name,
             p.created_at,
             p.updated_at,
             u.name as user_name,
             u.username as user_username,
             u.image as user_image
          FROM posts p
+         INNER JOIN post_status ps ON p.status_id = ps.id
          INNER JOIN users u ON p.user_id = u.id
-         WHERE p.user_id = ?
+         WHERE p.user_id = ? AND p.status_id IN (${ph})
          ORDER BY p.created_at DESC
          LIMIT ? OFFSET ?`,
-        [userId, limit, offset]
+        [userId, ...statusIds, limit, offset]
     )
     
     const postsWithImages = await Promise.all(
@@ -166,6 +194,26 @@ export async function updatePost(
     }
 }
 
+// ==================== ACTUALIZAR STATUS ====================
+export async function updatePostStatus(
+    postId: number,
+    statusName: PostStatusName
+): Promise<boolean> {
+    try {
+        const status = await findStatusByName(statusName)
+        if (!status) throw new Error(`Status "${statusName}" no encontrado en post_status`)
+
+        const [result] = await pool.query<ResultSetHeader>(
+            'UPDATE posts SET status_id = ? WHERE id = ?',
+            [status.id, postId]
+        )
+        return result.affectedRows > 0
+    } catch (error) {
+        console.error('Error actualizando status del post:', error)
+        return false
+    }
+}
+
 // ==================== ELIMINAR POST ====================
 export async function deletePost(postId: number): Promise<boolean> {
     try {
@@ -181,17 +229,29 @@ export async function deletePost(postId: number): Promise<boolean> {
 }
 
 // ==================== CONTAR POSTS ====================
-export async function countAllPosts(): Promise<number> {
+export async function countAllPosts(statuses: PostStatusName[] = ['ACTIVO']): Promise<number> {
+    const statusIds = await resolveStatusIds(statuses)
+    if (!statusIds.length) return 0
+
+    const ph = statusIds.map(() => '?').join(', ')
     const [rows] = await pool.query<RowDataPacket[]>(
-        'SELECT COUNT(*) as total FROM posts'
+        `SELECT COUNT(*) as total FROM posts WHERE status_id IN (${ph})`,
+        statusIds
     )
     return rows[0]?.total ?? 0
 }
 
-export async function countPostsByUserId(userId: number): Promise<number> {
+export async function countPostsByUserId(
+    userId: number,
+    statuses: PostStatusName[] = ['ACTIVO']
+): Promise<number> {
+    const statusIds = await resolveStatusIds(statuses)
+    if (!statusIds.length) return 0
+
+    const ph = statusIds.map(() => '?').join(', ')
     const [rows] = await pool.query<RowDataPacket[]>(
-        'SELECT COUNT(*) as total FROM posts WHERE user_id = ?',
-        [userId]
+        `SELECT COUNT(*) as total FROM posts WHERE user_id = ? AND status_id IN (${ph})`,
+        [userId, ...statusIds]
     )
     return rows[0]?.total ?? 0
 }

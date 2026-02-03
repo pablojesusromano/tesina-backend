@@ -1,5 +1,3 @@
-// src/middlewares/validateMiddleware.ts
-
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 
@@ -116,6 +114,11 @@ export const updatePostSchema = z.object({
     message: 'Debes proporcionar al menos un campo para actualizar'
 })
 
+export const updatePostStatusSchema = z.object({
+    status: z.enum(['BORRADOR', 'ACTIVO', 'RECHAZADO', 'ELIMINADO'], {
+        message: 'Estado inválido. Opciones: BORRADOR, ACTIVO, RECHAZADO, ELIMINADO'
+    })
+})
 
 // ============================================
 // SCHEMAS PARA SPECIES
@@ -284,6 +287,11 @@ export async function validateCreatePost(req: FastifyRequest) {
 export async function validateUpdatePost(req: FastifyRequest) {
     // @ts-ignore
     req.body = updatePostSchema.parse(req.body)
+}
+
+export async function validateStatusUpdate(req: FastifyRequest) {
+    // @ts-ignore
+    req.body = updatePostStatusSchema.parse(req.body)
 }
 
 // ============================================

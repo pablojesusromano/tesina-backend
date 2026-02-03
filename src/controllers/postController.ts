@@ -9,17 +9,32 @@ import {
     findPostById,
     getPostsByUserId,
     updatePost,
-    deletePost,
+    updatePostStatus,
     countAllPosts,
     countPostsByUserId
 } from '../models/post.js'
 import { 
-    createPostImage, 
-    deletePostImages
+    createPostImage
 } from '../models/postImage.js'
+import { POST_STATUS_NAMES, type PostStatusName } from '../models/postStatus.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+
+// ==================== TRANSICIONES VÁLIDAS POR ROL ====================
+const USER_TRANSITIONS: Record<PostStatusName, PostStatusName[]> = {
+    BORRADOR:  ['ACTIVO', 'ELIMINADO'],
+    ACTIVO:    ['ELIMINADO'],
+    RECHAZADO: ['ELIMINADO'],
+    ELIMINADO: []
+}
+
+const ADMIN_TRANSITIONS: Record<PostStatusName, PostStatusName[]> = {
+    BORRADOR:  ['ELIMINADO'],
+    ACTIVO:    ['RECHAZADO', 'ELIMINADO'],
+    RECHAZADO: ['BORRADOR', 'ELIMINADO'],
+    ELIMINADO: []
+}
 
 // ==================== CREAR POST ====================
 export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
@@ -38,7 +53,6 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
         let description: string | undefined
         const uploadedFiles: { filename: string; filepath: string }[] = []
 
-        // Procesar multipart data
         const parts = req.parts()
         
         for await (const part of parts) {
@@ -49,33 +63,28 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
                     description = part.value as string
                 }
             } else {
-                // Es un archivo
                 if (uploadedFiles.length >= MAX_FILES) {
                     return reply.code(400).send({ 
                         message: `Máximo ${MAX_FILES} imágenes permitidas` 
                     })
                 }
 
-                // Validar tipo
                 if (!ALLOWED_TYPES.includes(part.mimetype)) {
                     return reply.code(400).send({ 
                         message: 'Tipo de archivo no permitido. Solo JPG, PNG, WebP o HEIC' 
                     })
                 }
 
-                // Generar nombre único
                 const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
                 const ext = path.extname(part.filename)
                 const filename = `${uniqueSuffix}${ext}`
                 const filepath = path.join(__dirname, '../../uploads/posts', filename)
 
-                // Crear directorio si no existe
                 const uploadDir = path.join(__dirname, '../../uploads/posts')
                 if (!fs.existsSync(uploadDir)) {
                     fs.mkdirSync(uploadDir, { recursive: true })
                 }
 
-                // Guardar archivo
                 const buffer = await part.toBuffer()
                 fs.writeFileSync(filepath, buffer)
 
@@ -83,9 +92,7 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
             }
         }
 
-        // Validar campos
         if (!title || !description) {
-            // Limpiar archivos subidos
             uploadedFiles.forEach(f => {
                 if (fs.existsSync(f.filepath)) fs.unlinkSync(f.filepath)
             })
@@ -118,18 +125,15 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
             })
         }
 
-        // Crear post
         const postId = await createPost(user.id, title, description)
 
         if (!postId) {
-            // Limpiar archivos
             uploadedFiles.forEach(f => {
                 if (fs.existsSync(f.filepath)) fs.unlinkSync(f.filepath)
             })
             return reply.code(500).send({ message: 'Error creando publicación' })
         }
 
-        // Guardar rutas de imágenes
         await Promise.all(
             uploadedFiles.map((file, index) => {
                 const imagePath = `${UPLOADS_BASE_URL}/${file.filename}`
@@ -152,18 +156,33 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
 
 // ==================== OBTENER TODOS LOS POSTS (FEED) ====================
 export async function listPosts(req: FastifyRequest, reply: FastifyReply) {
-    const { page = 1, pageSize = 20 } = req.query as {
+    const authType = (req as any).authType
+    const { page = 1, pageSize = 20, status } = req.query as {
         page?: number
         pageSize?: number
+        status?: string
     }
 
     const validPage = Math.max(1, Number(page))
     const validPageSize = Math.min(100, Math.max(1, Number(pageSize)))
     const offset = (validPage - 1) * validPageSize
 
+    let statuses: PostStatusName[]
+    if (authType === 'admin') {
+        if (status) {
+            if (!Object.values(POST_STATUS_NAMES).includes(status as PostStatusName))
+                return reply.code(400).send({ message: 'Estado inválido' })
+            statuses = [status as PostStatusName]
+        } else {
+            statuses = Object.values(POST_STATUS_NAMES) as PostStatusName[]
+        }
+    } else {
+        statuses = [POST_STATUS_NAMES.ACTIVO]
+    }
+
     try {
-        const posts = await getAllPosts(validPageSize, offset)
-        const total = await countAllPosts()
+        const posts = await getAllPosts(validPageSize, offset, statuses)
+        const total = await countAllPosts(statuses)
 
         return reply.send({
             page: validPage,
@@ -180,6 +199,7 @@ export async function listPosts(req: FastifyRequest, reply: FastifyReply) {
 
 // ==================== OBTENER POST POR ID ====================
 export async function getPostById(req: FastifyRequest, reply: FastifyReply) {
+    const authType = (req as any).authType
     const { id } = req.params as { id: string }
     const postId = Number(id)
 
@@ -188,6 +208,13 @@ export async function getPostById(req: FastifyRequest, reply: FastifyReply) {
 
         if (!post) {
             return reply.code(404).send({ message: 'Publicación no encontrada' })
+        }
+
+        if (authType === 'user') {
+            const user = (req as any).user
+            if (post.user_id !== user.id && post.status_name !== POST_STATUS_NAMES.ACTIVO) {
+                return reply.code(404).send({ message: 'Publicación no encontrada' })
+            }
         }
 
         return reply.send({ post })
@@ -202,25 +229,34 @@ export async function getMyPosts(req: FastifyRequest, reply: FastifyReply) {
     const authType = (req as any).authType
     
     if (authType === 'admin') {
-        // Los admins no tienen posts propios
         return reply.code(403).send({ 
             message: 'Los administradores no tienen publicaciones propias' 
         })
     }
     
     const user = (req as any).user
-    const { page = 1, pageSize = 20 } = req.query as {
+    const { page = 1, pageSize = 20, status } = req.query as {
         page?: number
         pageSize?: number
+        status?: string
     }
 
     const validPage = Math.max(1, Number(page))
     const validPageSize = Math.min(100, Math.max(1, Number(pageSize)))
     const offset = (validPage - 1) * validPageSize
 
+    let statuses: PostStatusName[]
+    if (status) {
+        if (!Object.values(POST_STATUS_NAMES).includes(status as PostStatusName))
+            return reply.code(400).send({ message: 'Estado inválido' })
+        statuses = [status as PostStatusName]
+    } else {
+        statuses = Object.values(POST_STATUS_NAMES) as PostStatusName[]
+    }
+
     try {
-        const posts = await getPostsByUserId(user.id, validPageSize, offset)
-        const total = await countPostsByUserId(user.id)
+        const posts = await getPostsByUserId(user.id, validPageSize, offset, statuses)
+        const total = await countPostsByUserId(user.id, statuses)
 
         return reply.send({
             page: validPage,
@@ -237,6 +273,7 @@ export async function getMyPosts(req: FastifyRequest, reply: FastifyReply) {
 
 // ==================== OBTENER POSTS DE UN USUARIO ESPECÍFICO ====================
 export async function getUserPosts(req: FastifyRequest, reply: FastifyReply) {
+    const authType = (req as any).authType
     const { userId } = req.params as { userId: string }
     const { page = 1, pageSize = 20 } = req.query as {
         page?: number
@@ -248,9 +285,14 @@ export async function getUserPosts(req: FastifyRequest, reply: FastifyReply) {
     const validPageSize = Math.min(100, Math.max(1, Number(pageSize)))
     const offset = (validPage - 1) * validPageSize
 
+    const isOwner = authType === 'user' && (req as any).user.id === validUserId
+    const statuses: PostStatusName[] = (authType === 'admin' || isOwner)
+        ? Object.values(POST_STATUS_NAMES) as PostStatusName[]
+        : [POST_STATUS_NAMES.ACTIVO]
+
     try {
-        const posts = await getPostsByUserId(validUserId, validPageSize, offset)
-        const total = await countPostsByUserId(validUserId)
+        const posts = await getPostsByUserId(validUserId, validPageSize, offset, statuses)
+        const total = await countPostsByUserId(validUserId, statuses)
 
         return reply.send({
             page: validPage,
@@ -277,15 +319,18 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
     }
 
     try {
-        // Verificar que el post existe
         const post = await findPostById(postId)
 
         if (!post) {
             return reply.code(404).send({ message: 'Publicación no encontrada' })
         }
 
-        // ADMINS pueden editar cualquier post
-        // USERS solo pueden editar sus propios posts
+        if (post.status_name !== POST_STATUS_NAMES.BORRADOR && post.status_name !== POST_STATUS_NAMES.ACTIVO) {
+            return reply.code(403).send({ 
+                message: `No se puede editar una publicación con estado "${post.status_name}"` 
+            })
+        }
+
         if (authType === 'user') {
             const user = (req as any).user
             if (post.user_id !== user.id) {
@@ -294,9 +339,7 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
                 })
             }
         }
-        // Si es admin, puede editar cualquier post (no hay verificación adicional)
 
-        // Actualizar
         const success = await updatePost(postId, title, description)
 
         if (!success) {
@@ -315,7 +358,58 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
     }
 }
 
+// ==================== CAMBIAR ESTADO ====================
+export async function updatePostStatusById(req: FastifyRequest, reply: FastifyReply) {
+    const authType = (req as any).authType
+    const { id } = req.params as { id: string }
+    const postId = Number(id)
+    const { status } = req.body as { status: string }
+
+    try {
+        const post = await findPostById(postId)
+
+        if (!post) {
+            return reply.code(404).send({ message: 'Publicación no encontrada' })
+        }
+
+        if (authType === 'user') {
+            const user = (req as any).user
+            if (post.user_id !== user.id) {
+                return reply.code(403).send({ 
+                    message: 'No tienes permiso para cambiar el estado de esta publicación' 
+                })
+            }
+        }
+
+        const transitions = authType === 'admin' ? ADMIN_TRANSITIONS : USER_TRANSITIONS
+        const allowed = transitions[post.status_name]
+
+        if (!allowed?.includes(status as PostStatusName)) {
+            return reply.code(400).send({ 
+                message: `Transición "${post.status_name}" → "${status}" no permitida` 
+            })
+        }
+
+        const success = await updatePostStatus(postId, status as PostStatusName)
+
+        if (!success) {
+            return reply.code(500).send({ message: 'Error actualizando estado' })
+        }
+
+        const updatedPost = await findPostById(postId)
+
+        return reply.send({
+            message: `Estado actualizado a "${status}" exitosamente`,
+            post: updatedPost
+        })
+    } catch (error) {
+        console.error('Error actualizando estado del post:', error)
+        return reply.code(500).send({ message: 'Error interno del servidor' })
+    }
+}
+
 // ==================== ELIMINAR POST ====================
+// TO DO: AGREGAR EL DELETED_AT A LA TABLA POST
 export async function deletePostById(req: FastifyRequest, reply: FastifyReply) {
     const authType = (req as any).authType
     const { id } = req.params as { id: string }
@@ -337,11 +431,11 @@ export async function deletePostById(req: FastifyRequest, reply: FastifyReply) {
             }
         }
 
-        // Eliminar imágenes (archivos y BD)
-        await deletePostImages(postId)
+        if (post.status_name === POST_STATUS_NAMES.ELIMINADO) {
+            return reply.code(400).send({ message: 'La publicación ya está eliminada' })
+        }
 
-        // Eliminar post
-        const success = await deletePost(postId)
+        const success = await updatePostStatus(postId, POST_STATUS_NAMES.ELIMINADO)
 
         if (!success) {
             return reply.code(500).send({ message: 'Error eliminando publicación' })
