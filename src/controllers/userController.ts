@@ -4,6 +4,13 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 import { findUserById, findUserByUsername, updateUser as updateUserModel } from '../models/user.js'
 import { findUserTypeById } from '../models/userType.js'
 import type { User } from '../models/user.js'
+import { UPLOADS_BASE_URL_PROFILE, ALLOWED_TYPES, MAX_PROFILE_IMAGE_SIZE } from '../config/upload.js'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 function sanitizeUser(u: User) {
     // Los users ya no tienen datos sensibles, pero por consistencia:
@@ -69,35 +76,128 @@ export async function getUserById(req: FastifyRequest, reply: FastifyReply) {
     return reply.send(sanitizeUser(user))
 }
 
-/** PATCH /users/me - Actualizar mi perfil */
+/** PATCH /users/me - Actualizar mi perfil (datos + imagen opcional) */
 export async function updateUser(req: FastifyRequest, reply: FastifyReply) {
     const auth = (req as any).user
     const userId = auth.id
 
-    const body = (req.body as any) ?? {}
-    const updateData: Partial<User> = {}
-
-    // Campos permitidos para actualizar
-    if (body.name !== undefined) updateData.name = body.name
-    if (body.username !== undefined) updateData.username = body.username
-    if (body.image !== undefined) updateData.image = body.image
-    if (body.userTypeId !== undefined) {
-        // Validar que el userType existe
-        const ut = await findUserTypeById(Number(body.userTypeId))
-        if (!ut) {
-            return reply.code(400).send({ message: 'userTypeId inválido' })
-        }
-        updateData.user_type_id = ut.id
-    }
-
-    if (Object.keys(updateData).length === 0) {
-        return reply.code(400).send({ message: 'Nada para actualizar' })
-    }
-
     try {
+        const updateData: Partial<User> = {}
+        let uploadedImageUrl: string | null = null
+
+        // Verificar si es multipart (incluye imagen)
+        const contentType = req.headers['content-type'] || ''
+        
+        if (contentType.includes('multipart/form-data')) {
+            // Procesar multipart data
+            const parts = req.parts()
+            
+            for await (const part of parts) {
+                if (part.type === 'field') {
+                    // Campos de texto
+                    if (part.fieldname === 'name') {
+                        updateData.name = part.value as string
+                    } else if (part.fieldname === 'username') {
+                        updateData.username = part.value as string
+                    } else if (part.fieldname === 'userTypeId') {
+                        const userTypeId = Number(part.value)
+                        const ut = await findUserTypeById(userTypeId)
+                        if (!ut) {
+                            return reply.code(400).send({ message: 'userTypeId inválido' })
+                        }
+                        updateData.user_type_id = ut.id
+                    }
+                } else {
+                    // Es un archivo (imagen)
+                    if (uploadedImageUrl) {
+                        return reply.code(400).send({ 
+                            message: 'Solo se permite una imagen de perfil' 
+                        })
+                    }
+
+                    // Validar tipo
+                    if (!ALLOWED_TYPES.includes(part.mimetype)) {
+                        return reply.code(400).send({ 
+                            message: 'Tipo de archivo no permitido. Solo JPG, PNG, WebP o HEIC' 
+                        })
+                    }
+
+                    // Validar tamaño
+                    const buffer = await part.toBuffer()
+                    if (buffer.length > MAX_PROFILE_IMAGE_SIZE) {
+                        return reply.code(400).send({ 
+                            message: `La imagen no debe superar ${MAX_PROFILE_IMAGE_SIZE / (1024 * 1024)}MB` 
+                        })
+                    }
+
+                    // Crear directorio del usuario
+                    const userUploadDir = path.join(__dirname, '../..', 'uploads/users', userId.toString())
+                    if (!fs.existsSync(userUploadDir)) {
+                        fs.mkdirSync(userUploadDir, { recursive: true })
+                    }
+
+                    // Eliminar imagen anterior si existe
+                    const files = fs.readdirSync(userUploadDir)
+                    files.forEach(file => {
+                        const filePath = path.join(userUploadDir, file)
+                        if (fs.existsSync(filePath)) {
+                            fs.unlinkSync(filePath)
+                        }
+                    })
+
+                    // Generar nombre con extensión original
+                    const ext = path.extname(part.filename)
+                    const filename = `profile${ext}`
+                    const filepath = path.join(userUploadDir, filename)
+
+                    // Guardar archivo
+                    fs.writeFileSync(filepath, buffer)
+
+                    uploadedImageUrl = `${UPLOADS_BASE_URL_PROFILE}/${userId}/${filename}`
+                }
+            }
+        } else {
+            // JSON regular (sin imagen)
+            const body = (req.body as any) ?? {}
+            
+            if (body.name !== undefined) updateData.name = body.name
+            if (body.username !== undefined) updateData.username = body.username
+            if (body.userTypeId !== undefined) {
+                const ut = await findUserTypeById(Number(body.userTypeId))
+                if (!ut) {
+                    return reply.code(400).send({ message: 'userTypeId inválido' })
+                }
+                updateData.user_type_id = ut.id
+            }
+        }
+
+        // Si hay imagen, agregarla a updateData
+        if (uploadedImageUrl) {
+            updateData.image = uploadedImageUrl
+        }
+
+        // Validar que hay algo para actualizar
+        if (Object.keys(updateData).length === 0) {
+            return reply.code(400).send({ message: 'Nada para actualizar' })
+        }
+
+        // Actualizar usuario
         const success = await updateUserModel(userId, updateData)
         
         if (!success) {
+            // Limpiar imagen si falla
+            if (uploadedImageUrl) {
+                const userUploadDir = path.join(__dirname, '../../uploads/users', userId.toString())
+                if (fs.existsSync(userUploadDir)) {
+                    const files = fs.readdirSync(userUploadDir)
+                    files.forEach(file => {
+                        const filePath = path.join(userUploadDir, file)
+                        if (fs.existsSync(filePath)) {
+                            fs.unlinkSync(filePath)
+                        }
+                    })
+                }
+            }
             return reply.code(500).send({ message: 'Error actualizando usuario' })
         }
 
@@ -107,6 +207,7 @@ export async function updateUser(req: FastifyRequest, reply: FastifyReply) {
             user: sanitizeUser(updated!)
         })
     } catch (err: any) {
+        console.error('Error actualizando usuario:', err)
         if (err?.code === 'ER_DUP_ENTRY') {
             return reply.code(409).send({ message: 'Username ya en uso' })
         }

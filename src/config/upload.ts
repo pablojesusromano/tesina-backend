@@ -3,3 +3,7 @@ export const UPLOADS_BASE_URL = '/uploads/posts'
 export const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 export const MAX_FILES = 4
 export const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic']
+
+export const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024 // 5MB
+export const UPLOAD_DIR_PROFILE = 'uploads/users'
+export const UPLOADS_BASE_URL_PROFILE = '/uploads/users'
