@@ -1,15 +1,15 @@
 import type { FastifyInstance } from 'fastify'
-import { protectUserOrAdminRoute } from '../middlewares/authMiddleware.js'
 import {
     listUsers,
     getMe,
     getUserById,
     updateUser
 } from '../controllers/userController.js'
+import { protectUserRoute } from '../middlewares/userAuthMiddleware.js'
 
 export default async function usersRoutes(app: FastifyInstance) {
     // Todas requieren autenticación de user móvil
-    app.addHook('preHandler', protectUserOrAdminRoute)
+    app.addHook('preHandler', protectUserRoute)
 
     // GET /users - Listar usuarios (público para users autenticados - para rankings, etc)
     app.get('/', listUsers)
