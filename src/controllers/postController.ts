@@ -51,6 +51,7 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
     try {
         let title: string | undefined
         let description: string | undefined
+        let imagesMetadata: Array<{index: number, latitude?: number, longitude?: number}> = []
         const uploadedFiles: { filename: string; filepath: string }[] = []
 
         const parts = req.parts()
@@ -61,6 +62,12 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
                     title = part.value as string
                 } else if (part.fieldname === 'description') {
                     description = part.value as string
+                } else if (part.fieldname === 'images_metadata') {
+                    try {
+                        imagesMetadata = JSON.parse(part.value as string)
+                    } catch (e) {
+                        console.error('Error parseando images_metadata:', e)
+                    }
                 }
             } else {
                 if (uploadedFiles.length >= MAX_FILES) {
@@ -137,7 +144,13 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
         await Promise.all(
             uploadedFiles.map((file, index) => {
                 const imagePath = `${UPLOADS_BASE_URL}/${file.filename}`
-                return createPostImage(postId, imagePath, index)
+                
+                // Buscar metadata para esta imagen
+                const metadata = imagesMetadata.find(m => m.index === index)
+                const latitude = metadata?.latitude ?? null
+                const longitude = metadata?.longitude ?? null
+                
+                return createPostImage(postId, imagePath, index, latitude, longitude)
             })
         )
 

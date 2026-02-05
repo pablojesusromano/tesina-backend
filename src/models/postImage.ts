@@ -10,6 +10,8 @@ const __dirname = path.dirname(__filename)
 export interface PostImage {
     id: number
     post_id: number
+    latitude: number | null
+    longitude: number | null
     image_path: string
     image_order: number
     created_at: Date
@@ -19,13 +21,15 @@ export interface PostImage {
 export async function createPostImage(
     postId: number,
     imagePath: string,
-    imageOrder: number
+    imageOrder: number,
+    latitude?: number | null,
+    longitude?: number | null
 ): Promise<number | null> {
     try {
         const [result] = await pool.query<ResultSetHeader>(
-            `INSERT INTO post_images (post_id, image_path, image_order) 
-             VALUES (?, ?, ?)`,
-            [postId, imagePath, imageOrder]
+            `INSERT INTO post_images (post_id, latitude, longitude, image_path, image_order) 
+            VALUES (?, ?, ?, ?, ?)`,
+            [postId, latitude ?? null, longitude ?? null, imagePath, imageOrder]
         )
         return result.insertId
     } catch (error) {
