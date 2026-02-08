@@ -163,12 +163,12 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
             })
         }
 
-        if (description.length < 10 || description.length > 5000) {
+        if (description.length > 5000) {
             uploadedFiles.forEach(f => {
                 if (fs.existsSync(f.filepath)) fs.unlinkSync(f.filepath)
             })
             return reply.code(400).send({ 
-                message: 'La descripción debe tener entre 10 y 5000 caracteres' 
+                message: 'La descripción debe tener 5000 caracteres como máximo' 
             })
         }
 
