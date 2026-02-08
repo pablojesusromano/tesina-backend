@@ -5,7 +5,8 @@ export const POST_STATUS_NAMES = {
     BORRADOR:  'BORRADOR',
     ACTIVO:    'ACTIVO',
     RECHAZADO: 'RECHAZADO',
-    ELIMINADO: 'ELIMINADO'
+    ELIMINADO: 'ELIMINADO',
+    REVISION: 'REVISION'
 } as const
 
 export type PostStatusName = typeof POST_STATUS_NAMES[keyof typeof POST_STATUS_NAMES]
