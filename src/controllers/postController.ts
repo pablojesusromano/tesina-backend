@@ -16,13 +16,20 @@ import {
 import { 
     createPostImage
 } from '../models/postImage.js'
-import { POST_STATUS_NAMES, type PostStatusName } from '../models/postStatus.js'
+import { POST_STATUS_NAMES, type PostStatusName, getAllStatusNames } from '../models/postStatus.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// ==================== ESTADOS VÁLIDOS ====================
-const VALID_STATUSES: PostStatusName[] = ['BORRADOR', 'ACTIVO', 'RECHAZADO', 'ELIMINADO', 'REVISION']
+// ==================== CACHÉ DE ESTADOS VÁLIDOS ====================
+let validStatusesCache: PostStatusName[] | null = null
+
+async function getValidStatuses(): Promise<PostStatusName[]> {
+    if (!validStatusesCache) {
+        validStatusesCache = await getAllStatusNames()
+    }
+    return validStatusesCache
+}
 
 // ==================== TRANSICIONES VÁLIDAS POR ROL ====================
 const USER_TRANSITIONS: Record<PostStatusName, PostStatusName[]> = {
@@ -42,21 +49,31 @@ const ADMIN_TRANSITIONS: Record<PostStatusName, PostStatusName[]> = {
 }
 
 // ==================== HELPER: PARSEAR ESTADOS DEL QUERY ====================
-function parseStatusesFromQuery(statusQuery?: string | string[]): PostStatusName[] {
+async function parseStatusesFromQuery(
+    statusQuery?: string | string[],
+    defaultStatuses: PostStatusName[] | 'ALL' = ['ACTIVO']
+): Promise<PostStatusName[]> {
+    const validStatuses = await getValidStatuses()
+    
+    // Si no hay query, retornar el default
     if (!statusQuery) {
-        return ['ACTIVO']
+        return defaultStatuses === 'ALL' ? validStatuses : defaultStatuses
     }
 
     // Si viene como string, convertir a array
     const statusArray = Array.isArray(statusQuery) ? statusQuery : [statusQuery]
     
     // Filtrar solo los estados válidos
-    const validStatuses = statusArray.filter(s => 
-        VALID_STATUSES.includes(s as PostStatusName)
+    const filteredStatuses = statusArray.filter(s => 
+        validStatuses.includes(s as PostStatusName)
     ) as PostStatusName[]
 
-    // Si después del filtrado no hay estados válidos, retornar ACTIVO por defecto
-    return validStatuses.length > 0 ? validStatuses : ['ACTIVO']
+    // Si después del filtrado no hay estados válidos, retornar el default
+    if (filteredStatuses.length === 0) {
+        return defaultStatuses === 'ALL' ? validStatuses : defaultStatuses
+    }
+    
+    return filteredStatuses
 }
 
 // ==================== CREAR POST ====================
@@ -208,15 +225,11 @@ export async function listPosts(req: FastifyRequest, reply: FastifyReply) {
     
     if (authType === 'admin') {
         // Admin puede filtrar por cualquier estado
-        statuses = parseStatusesFromQuery(statusesQuery)
+        statuses = await parseStatusesFromQuery(statusesQuery)
     } else {
-        // Usuario solo puede ver ACTIVO (por defecto) o los que solicite del query
-        // pero siempre filtramos para que solo vea estados permitidos
-        const requestedStatuses = parseStatusesFromQuery(statusesQuery)
-        
-        // Usuario común solo puede ver publicaciones ACTIVO
-        // Si pide otros estados, se ignoran
-        statuses = requestedStatuses.includes('ACTIVO') ? ['ACTIVO'] : ['ACTIVO']
+        // Usuario solo puede ver ACTIVO en el feed público
+        // (sin importar lo que solicite en el query)
+        statuses = ['ACTIVO']
     }
 
     try {
@@ -285,7 +298,8 @@ export async function getMyPosts(req: FastifyRequest, reply: FastifyReply) {
     const offset = (validPage - 1) * validPageSize
 
     // El usuario puede ver todos sus posts en cualquier estado
-    const statuses = parseStatusesFromQuery(statusesQuery)
+    // Por defecto trae TODOS, pero puede filtrar si lo desea
+    const statuses = await parseStatusesFromQuery(statusesQuery, 'ALL')
 
     try {
         const posts = await getPostsByUserId(user.id, validPageSize, offset, statuses)
@@ -325,11 +339,11 @@ export async function getUserPosts(req: FastifyRequest, reply: FastifyReply) {
     let statuses: PostStatusName[]
     
     if (authType === 'admin') {
-        // Admin puede ver todos los estados que solicite
-        statuses = parseStatusesFromQuery(statusesQuery)
+        // Admin puede ver todos los estados que solicite (default: ACTIVO)
+        statuses = await parseStatusesFromQuery(statusesQuery)
     } else if (isOwner) {
-        // El dueño puede ver todos sus posts en cualquier estado
-        statuses = parseStatusesFromQuery(statusesQuery)
+        // El dueño puede ver todos sus posts en cualquier estado (default: ACTIVO)
+        statuses = await parseStatusesFromQuery(statusesQuery)
     } else {
         // Otros usuarios solo pueden ver posts ACTIVO
         statuses = ['ACTIVO']
@@ -454,6 +468,7 @@ export async function updatePostStatusById(req: FastifyRequest, reply: FastifyRe
 }
 
 // ==================== ELIMINAR POST ====================
+// TO DO: AGREGAR EL DELETED_AT A LA TABLA POST
 export async function deletePostById(req: FastifyRequest, reply: FastifyReply) {
     const authType = (req as any).authType
     const { id } = req.params as { id: string }
