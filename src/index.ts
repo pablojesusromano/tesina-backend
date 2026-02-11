@@ -17,6 +17,7 @@ import userTypesRoutes from './routes/userTypeRoutes.js'
 import usersRoutes from './routes/userRoutes.js'
 import postRoutes from './routes/postRoutes.js'
 import speciesRoutes from './routes/speciesRoutes.js'
+import notificationRoutes from './routes/notificationRoutes.js'
 
 import firebaseAdmin from './plugins/firebaseAdmin.js'
 import adminRoutes from './routes/adminRoutes.js'
@@ -90,6 +91,7 @@ await app.register(usersRoutes, { prefix: '/api/users' })  // Gestión de usuari
 await app.register(userTypesRoutes, { prefix: '/api/user-types' })
 await app.register(postRoutes, { prefix: '/api/posts' })
 await app.register(speciesRoutes, { prefix: '/api/species' })
+await app.register(notificationRoutes, { prefix: '/api/notifications' })
 
 const port = Number(process.env.PORT ?? 3000)
 const host = process.env.HOST ?? '127.0.0.1'

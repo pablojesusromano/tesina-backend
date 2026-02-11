@@ -17,6 +17,7 @@ import {
     createPostImage
 } from '../models/postImage.js'
 import { POST_STATUS_NAMES, type PostStatusName, getAllStatusNames } from '../models/postStatus.js'
+import { sendSightingNotification } from '../services/firebaseCloudMessagingService.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -33,7 +34,7 @@ async function getValidStatuses(): Promise<PostStatusName[]> {
 
 // ==================== TRANSICIONES VÁLIDAS POR ROL ====================
 const USER_TRANSITIONS: Record<PostStatusName, PostStatusName[]> = {
-    BORRADOR:  ['ACTIVO', 'ELIMINADO'],
+    BORRADOR:  ['REVISION', 'ELIMINADO'],
     ACTIVO:    ['ELIMINADO'],
     RECHAZADO: ['ELIMINADO'],
     ELIMINADO: [],
@@ -457,6 +458,22 @@ export async function updatePostStatusById(req: FastifyRequest, reply: FastifyRe
 
         const updatedPost = await findPostById(postId)
 
+        // ENVIAR NOTIFICACIÓN SI ES ADMIN Y ACTIVA UN AVISTAMIENTO
+        if (
+            authType === 'admin' && 
+            post.status_name === POST_STATUS_NAMES.REVISION && 
+            status === POST_STATUS_NAMES.ACTIVO
+        ) {
+            sendSightingNotification(req.server, {
+                postId: postId,
+                userName: post.user_name || 'Usuario',
+                latitude: post.images?.[0]?.latitude ?? null,
+                longitude: post.images?.[0]?.longitude ?? null
+            }).catch(error => {
+                req.server.log.error({ msg: 'Error en notificación', error })
+            })
+        }
+
         return reply.send({
             message: `Estado actualizado a "${status}" exitosamente`,
             post: updatedPost
@@ -468,7 +485,6 @@ export async function updatePostStatusById(req: FastifyRequest, reply: FastifyRe
 }
 
 // ==================== ELIMINAR POST ====================
-// TO DO: AGREGAR EL DELETED_AT A LA TABLA POST
 export async function deletePostById(req: FastifyRequest, reply: FastifyReply) {
     const authType = (req as any).authType
     const { id } = req.params as { id: string }
