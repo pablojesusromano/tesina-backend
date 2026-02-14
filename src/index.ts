@@ -94,7 +94,7 @@ await app.register(speciesRoutes, { prefix: '/api/species' })
 await app.register(notificationRoutes, { prefix: '/api/notifications' })
 
 const port = Number(process.env.PORT ?? 3000)
-const host = process.env.HOST ?? '127.0.0.1'
+const host = process.env.HOST ?? '0.0.0.0'
 
 try {
     await app.listen({ port, host })
