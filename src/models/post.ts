@@ -283,6 +283,9 @@ export async function unlikePost(userId: number, postId: number): Promise<boolea
             'DELETE FROM post_likes WHERE user_id = ? AND post_id = ?',
             [userId, postId]
         )
+        console.log(result)
+        console.log("userId: " + userId);
+        console.log("postId: " + postId);
         return result.affectedRows > 0
     } catch (error) {
         console.error('Error quitando like:', error)
@@ -343,7 +346,7 @@ export async function addCommentToPost(
 ): Promise<number | null> {
     try {
         const [result] = await pool.query<ResultSetHeader>(
-            'INSERT INTO post_comments (user_id, post_id, parent_id, content) VALUES (?, ?, ?, ?)',
+            'INSERT INTO comments (user_id, post_id, parent_id, content) VALUES (?, ?, ?, ?)',
             [userId, postId, parentId, content]
         )
         return result.insertId
@@ -356,7 +359,7 @@ export async function addCommentToPost(
 export async function deleteCommentById(commentId: number): Promise<boolean> {
     try {
         const [result] = await pool.query<ResultSetHeader>(
-            'DELETE FROM post_comments WHERE id = ?',
+            'DELETE FROM comments WHERE id = ?',
             [commentId]
         )
         return result.affectedRows > 0
@@ -378,7 +381,7 @@ export async function getCommentsByPostId(postId: number): Promise<any[]> {
                 u.name as user_name,
                 u.username as user_username,
                 u.image as user_image
-            FROM post_comments pc
+            FROM comments pc
             INNER JOIN users u ON pc.user_id = u.id
             WHERE pc.post_id = ?
             ORDER BY pc.created_at ASC`, // Ordenados por fecha de creación
@@ -394,7 +397,7 @@ export async function getCommentsByPostId(postId: number): Promise<any[]> {
 // Helper para validar propiedad
 export async function getCommentById(commentId: number): Promise<any | null> {
     const [rows] = await pool.query<RowDataPacket[]>(
-        'SELECT * FROM post_comments WHERE id = ?',
+        'SELECT * FROM comments WHERE id = ?',
         [commentId]
     )
     return rows[0] || null

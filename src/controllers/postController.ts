@@ -569,6 +569,7 @@ export async function unlikePostById(req: FastifyRequest, reply: FastifyReply) {
     try {
         const post = await findPostById(postId)
         if (!post) {
+            console.log("Publicación no encontrada" + postId)
             return reply.code(404).send({ message: 'Publicación no encontrada' })
         }
 
