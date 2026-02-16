@@ -74,14 +74,14 @@ export async function getAllPosts(
          LIMIT ? OFFSET ?`,
         [...statusIds, limit, offset]
     )
-    
+
     const postsWithImages = await Promise.all(
         rows.map(async (post: any) => {
             const images = await getPostImages(post.id)
             return { ...post, images } as PostWithUserAndImages
         })
     )
-    
+
     return postsWithImages
 }
 
@@ -106,13 +106,13 @@ export async function findPostById(postId: number): Promise<PostWithUserAndImage
          WHERE p.id = ?`,
         [postId]
     )
-    
+
     if (rows.length === 0) return null
-    
+
     const post = rows[0] as any
     const images = await getPostImages(postId)
     post.images = images
-    
+
     return post as PostWithUserAndImages
 }
 
@@ -149,14 +149,14 @@ export async function getPostsByUserId(
          LIMIT ? OFFSET ?`,
         [userId, ...statusIds, limit, offset]
     )
-    
+
     const postsWithImages = await Promise.all(
         rows.map(async (post: any) => {
             const images = await getPostImages(post.id)
             return { ...post, images } as PostWithUserAndImages
         })
     )
-    
+
     return postsWithImages
 }
 
@@ -254,4 +254,148 @@ export async function countPostsByUserId(
         [userId, ...statusIds]
     )
     return rows[0]?.total ?? 0
+}
+
+// ==================== DAR LIKE A POST ====================
+export async function likePostById(userId: number, postId: number): Promise<number | null> {
+    try {
+        // Verificar si ya existe para evitar errores de clave duplicada si no hay constraints (aunque debería haber)
+        // O simplemente intentar insertar.
+        const [result] = await pool.query<ResultSetHeader>(
+            'INSERT IGNORE INTO post_likes (user_id, post_id) VALUES (?, ?)',
+            [userId, postId]
+        )
+        return result.insertId || (result.affectedRows === 0 ? null : result.insertId)
+        // Si insert ignore y ya existe, affectedRows es 0. 
+        // Pero queremos saber si se dio like.
+        // Si ya existia, quizas devolver ID del existente? O null indicando "ya estaba".
+        // El controller maneja "null" como error o "ya diste like".
+    } catch (error) {
+        console.error('Error dando like:', error)
+        return null
+    }
+}
+
+// ==================== QUITAR LIKE ====================
+export async function unlikePost(userId: number, postId: number): Promise<boolean> {
+    try {
+        const [result] = await pool.query<ResultSetHeader>(
+            'DELETE FROM post_likes WHERE user_id = ? AND post_id = ?',
+            [userId, postId]
+        )
+        return result.affectedRows > 0
+    } catch (error) {
+        console.error('Error quitando like:', error)
+        return false
+    }
+}
+
+// Agrego unlikePostById por compatibilidad si se usara el ID del like, 
+// pero el requerimiento pide usar ID del post. 
+// Dejo unlikePost como principal.
+
+// ==================== OBTENER POSTS LIKEADOS ====================
+export async function getLikedPostsByUserId(
+    userId: number,
+    limit: number = 20,
+    offset: number = 0
+): Promise<(PostWithUserAndImages & { like_id: number })[]> {
+    const [rows] = await pool.query<(RowDataPacket & Post)[]>(
+        `SELECT 
+            p.id,
+            p.title,
+            p.description,
+            p.user_id,
+            p.status_id,
+            ps.name as status_name,
+            p.created_at,
+            p.updated_at,
+            u.name as user_name,
+            u.username as user_username,
+            u.image as user_image,
+            pl.id as like_id
+        FROM post_likes pl
+        INNER JOIN posts p ON pl.post_id = p.id
+        INNER JOIN post_status ps ON p.status_id = ps.id
+        INNER JOIN users u ON p.user_id = u.id
+        WHERE pl.user_id = ?
+        ORDER BY pl.created_at DESC
+        LIMIT ? OFFSET ?`,
+        [userId, limit, offset]
+    )
+
+    const postsWithImages = await Promise.all(
+        rows.map(async (post: any) => {
+            const images = await getPostImages(post.id)
+            return { ...post, images }
+        })
+    )
+
+    return postsWithImages as (PostWithUserAndImages & { like_id: number })[]
+}
+
+// ==================== COMENTARIOS ====================
+export async function addCommentToPost(
+    userId: number,
+    postId: number,
+    parentId: number | null,
+    content: string
+): Promise<number | null> {
+    try {
+        const [result] = await pool.query<ResultSetHeader>(
+            'INSERT INTO post_comments (user_id, post_id, parent_id, content) VALUES (?, ?, ?, ?)',
+            [userId, postId, parentId, content]
+        )
+        return result.insertId
+    } catch (error) {
+        console.error('Error agregando comentario:', error)
+        return null
+    }
+}
+
+export async function deleteCommentById(commentId: number): Promise<boolean> {
+    try {
+        const [result] = await pool.query<ResultSetHeader>(
+            'DELETE FROM post_comments WHERE id = ?',
+            [commentId]
+        )
+        return result.affectedRows > 0
+    } catch (error) {
+        console.error('Error eliminando comentario:', error)
+        return false
+    }
+}
+
+export async function getCommentsByPostId(postId: number): Promise<any[]> {
+    try {
+        const [rows] = await pool.query<RowDataPacket[]>(
+            `SELECT 
+                pc.id,
+                pc.content,
+                pc.parent_id,
+                pc.created_at,
+                u.id as user_id,
+                u.name as user_name,
+                u.username as user_username,
+                u.image as user_image
+            FROM post_comments pc
+            INNER JOIN users u ON pc.user_id = u.id
+            WHERE pc.post_id = ?
+            ORDER BY pc.created_at ASC`, // Ordenados por fecha de creación
+            [postId]
+        )
+        return rows
+    } catch (error) {
+        console.error('Error obteniendo comentarios:', error)
+        return []
+    }
+}
+
+// Helper para validar propiedad
+export async function getCommentById(commentId: number): Promise<any | null> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+        'SELECT * FROM post_comments WHERE id = ?',
+        [commentId]
+    )
+    return rows[0] || null
 }

@@ -11,9 +11,16 @@ import {
     updatePost,
     updatePostStatus,
     countAllPosts,
-    countPostsByUserId
+    countPostsByUserId,
+    likePostById as modelLikePostById,
+    unlikePost,
+    getLikedPostsByUserId,
+    addCommentToPost as modelAddCommentToPost,
+    deleteCommentById as modelDeleteCommentById,
+    getCommentsByPostId as modelGetCommentsByPostId,
+    getCommentById
 } from '../models/post.js'
-import { 
+import {
     createPostImage
 } from '../models/postImage.js'
 import { POST_STATUS_NAMES, type PostStatusName, getAllStatusNames } from '../models/postStatus.js'
@@ -34,19 +41,19 @@ async function getValidStatuses(): Promise<PostStatusName[]> {
 
 // ==================== TRANSICIONES VÁLIDAS POR ROL ====================
 const USER_TRANSITIONS: Record<PostStatusName, PostStatusName[]> = {
-    BORRADOR:  ['REVISION', 'ELIMINADO'],
-    ACTIVO:    ['ELIMINADO'],
+    BORRADOR: ['REVISION', 'ELIMINADO'],
+    ACTIVO: ['ELIMINADO'],
     RECHAZADO: ['ELIMINADO'],
     ELIMINADO: [],
-    REVISION:  ['ELIMINADO']
+    REVISION: ['ELIMINADO']
 }
 
 const ADMIN_TRANSITIONS: Record<PostStatusName, PostStatusName[]> = {
-    BORRADOR:  ['REVISION', 'ELIMINADO'],
-    ACTIVO:    ['RECHAZADO', 'ELIMINADO'],
+    BORRADOR: ['REVISION', 'ELIMINADO'],
+    ACTIVO: ['RECHAZADO', 'ELIMINADO'],
     RECHAZADO: ['BORRADOR', 'ELIMINADO'],
     ELIMINADO: [],
-    REVISION:  ['ACTIVO', 'RECHAZADO', 'ELIMINADO']
+    REVISION: ['ACTIVO', 'RECHAZADO', 'ELIMINADO']
 }
 
 // ==================== HELPER: PARSEAR ESTADOS DEL QUERY ====================
@@ -55,7 +62,7 @@ async function parseStatusesFromQuery(
     defaultStatuses: PostStatusName[] | 'ALL' = ['ACTIVO']
 ): Promise<PostStatusName[]> {
     const validStatuses = await getValidStatuses()
-    
+
     // Si no hay query, retornar el default
     if (!statusQuery) {
         return defaultStatuses === 'ALL' ? validStatuses : defaultStatuses
@@ -63,9 +70,9 @@ async function parseStatusesFromQuery(
 
     // Si viene como string, convertir a array
     const statusArray = Array.isArray(statusQuery) ? statusQuery : [statusQuery]
-    
+
     // Filtrar solo los estados válidos
-    const filteredStatuses = statusArray.filter(s => 
+    const filteredStatuses = statusArray.filter(s =>
         validStatuses.includes(s as PostStatusName)
     ) as PostStatusName[]
 
@@ -73,17 +80,17 @@ async function parseStatusesFromQuery(
     if (filteredStatuses.length === 0) {
         return defaultStatuses === 'ALL' ? validStatuses : defaultStatuses
     }
-    
+
     return filteredStatuses
 }
 
 // ==================== CREAR POST ====================
 export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
     const authType = (req as any).authType
-    
+
     if (authType === 'admin') {
-        return reply.code(403).send({ 
-            message: 'Los administradores no pueden crear publicaciones. Use una cuenta de usuario.' 
+        return reply.code(403).send({
+            message: 'Los administradores no pueden crear publicaciones. Use una cuenta de usuario.'
         })
     }
 
@@ -92,11 +99,11 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
     try {
         let title: string | undefined
         let description: string | undefined
-        let imagesMetadata: Array<{index: number, latitude?: number, longitude?: number}> = []
+        let imagesMetadata: Array<{ index: number, latitude?: number, longitude?: number }> = []
         const uploadedFiles: { filename: string; filepath: string }[] = []
 
         const parts = req.parts()
-        
+
         for await (const part of parts) {
             if (part.type === 'field') {
                 if (part.fieldname === 'title') {
@@ -112,14 +119,14 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
                 }
             } else {
                 if (uploadedFiles.length >= MAX_FILES) {
-                    return reply.code(400).send({ 
-                        message: `Máximo ${MAX_FILES} imágenes permitidas` 
+                    return reply.code(400).send({
+                        message: `Máximo ${MAX_FILES} imágenes permitidas`
                     })
                 }
 
                 if (!ALLOWED_TYPES.includes(part.mimetype)) {
-                    return reply.code(400).send({ 
-                        message: 'Tipo de archivo no permitido. Solo JPG, PNG, WebP o HEIC' 
+                    return reply.code(400).send({
+                        message: 'Tipo de archivo no permitido. Solo JPG, PNG, WebP o HEIC'
                     })
                 }
 
@@ -144,14 +151,14 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
             uploadedFiles.forEach(f => {
                 if (fs.existsSync(f.filepath)) fs.unlinkSync(f.filepath)
             })
-            return reply.code(400).send({ 
-                message: 'Título y descripción son obligatorios' 
+            return reply.code(400).send({
+                message: 'Título y descripción son obligatorios'
             })
         }
 
         if (uploadedFiles.length === 0) {
-            return reply.code(400).send({ 
-                message: 'Debes subir al menos 1 imagen' 
+            return reply.code(400).send({
+                message: 'Debes subir al menos 1 imagen'
             })
         }
 
@@ -159,8 +166,8 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
             uploadedFiles.forEach(f => {
                 if (fs.existsSync(f.filepath)) fs.unlinkSync(f.filepath)
             })
-            return reply.code(400).send({ 
-                message: 'El título debe tener entre 3 y 200 caracteres' 
+            return reply.code(400).send({
+                message: 'El título debe tener entre 3 y 200 caracteres'
             })
         }
 
@@ -168,8 +175,8 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
             uploadedFiles.forEach(f => {
                 if (fs.existsSync(f.filepath)) fs.unlinkSync(f.filepath)
             })
-            return reply.code(400).send({ 
-                message: 'La descripción debe tener 5000 caracteres como máximo' 
+            return reply.code(400).send({
+                message: 'La descripción debe tener 5000 caracteres como máximo'
             })
         }
 
@@ -185,12 +192,12 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
         await Promise.all(
             uploadedFiles.map((file, index) => {
                 const imagePath = `${UPLOADS_BASE_URL}/${file.filename}`
-                
+
                 // Buscar metadata para esta imagen
                 const metadata = imagesMetadata.find(m => m.index === index)
                 const latitude = metadata?.latitude ?? null
                 const longitude = metadata?.longitude ?? null
-                
+
                 return createPostImage(postId, imagePath, index, latitude, longitude)
             })
         )
@@ -223,7 +230,7 @@ export async function listPosts(req: FastifyRequest, reply: FastifyReply) {
 
     // Parsear estados desde el query
     let statuses: PostStatusName[]
-    
+
     if (authType === 'admin') {
         // Admin puede filtrar por cualquier estado
         statuses = await parseStatusesFromQuery(statusesQuery)
@@ -280,13 +287,13 @@ export async function getPostById(req: FastifyRequest, reply: FastifyReply) {
 // ==================== OBTENER MIS POSTS ====================
 export async function getMyPosts(req: FastifyRequest, reply: FastifyReply) {
     const authType = (req as any).authType
-    
+
     if (authType === 'admin') {
-        return reply.code(403).send({ 
-            message: 'Los administradores no tienen publicaciones propias' 
+        return reply.code(403).send({
+            message: 'Los administradores no tienen publicaciones propias'
         })
     }
-    
+
     const user = (req as any).user
     const { page = 1, pageSize = 20, statuses: statusesQuery } = req.query as {
         page?: number
@@ -335,10 +342,10 @@ export async function getUserPosts(req: FastifyRequest, reply: FastifyReply) {
     const offset = (validPage - 1) * validPageSize
 
     const isOwner = authType === 'user' && (req as any).user.id === validUserId
-    
+
     // Determinar qué estados puede ver
     let statuses: PostStatusName[]
-    
+
     if (authType === 'admin') {
         // Admin puede ver todos los estados que solicite (default: ACTIVO)
         statuses = await parseStatusesFromQuery(statusesQuery)
@@ -386,16 +393,16 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
         }
 
         if (post.status_name !== POST_STATUS_NAMES.BORRADOR && post.status_name !== POST_STATUS_NAMES.ACTIVO) {
-            return reply.code(403).send({ 
-                message: `No se puede editar una publicación con estado "${post.status_name}"` 
+            return reply.code(403).send({
+                message: `No se puede editar una publicación con estado "${post.status_name}"`
             })
         }
 
         if (authType === 'user') {
             const user = (req as any).user
             if (post.user_id !== user.id) {
-                return reply.code(403).send({ 
-                    message: 'No tienes permiso para editar esta publicación' 
+                return reply.code(403).send({
+                    message: 'No tienes permiso para editar esta publicación'
                 })
             }
         }
@@ -435,8 +442,8 @@ export async function updatePostStatusById(req: FastifyRequest, reply: FastifyRe
         if (authType === 'user') {
             const user = (req as any).user
             if (post.user_id !== user.id) {
-                return reply.code(403).send({ 
-                    message: 'No tienes permiso para cambiar el estado de esta publicación' 
+                return reply.code(403).send({
+                    message: 'No tienes permiso para cambiar el estado de esta publicación'
                 })
             }
         }
@@ -445,8 +452,8 @@ export async function updatePostStatusById(req: FastifyRequest, reply: FastifyRe
         const allowed = transitions[post.status_name]
 
         if (!allowed?.includes(status as PostStatusName)) {
-            return reply.code(400).send({ 
-                message: `Transición "${post.status_name}" → "${status}" no permitida` 
+            return reply.code(400).send({
+                message: `Transición "${post.status_name}" → "${status}" no permitida`
             })
         }
 
@@ -460,8 +467,8 @@ export async function updatePostStatusById(req: FastifyRequest, reply: FastifyRe
 
         // ENVIAR NOTIFICACIÓN SI ES ADMIN Y ACTIVA UN AVISTAMIENTO
         if (
-            authType === 'admin' && 
-            post.status_name === POST_STATUS_NAMES.REVISION && 
+            authType === 'admin' &&
+            post.status_name === POST_STATUS_NAMES.REVISION &&
             status === POST_STATUS_NAMES.ACTIVO
         ) {
             sendSightingNotification(req.server, {
@@ -500,8 +507,8 @@ export async function deletePostById(req: FastifyRequest, reply: FastifyReply) {
         if (authType === 'user') {
             const user = (req as any).user
             if (post.user_id !== user.id) {
-                return reply.code(403).send({ 
-                    message: 'No tienes permiso para eliminar esta publicación' 
+                return reply.code(403).send({
+                    message: 'No tienes permiso para eliminar esta publicación'
                 })
             }
         }
@@ -520,5 +527,150 @@ export async function deletePostById(req: FastifyRequest, reply: FastifyReply) {
     } catch (error) {
         console.error('Error eliminando post:', error)
         return reply.code(500).send({ message: 'Error interno del servidor' })
+    }
+}
+
+// ==================== DAR LIKE A POST ====================
+export async function likePostById(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).user
+    const { id } = req.params as { id: string }
+    const postId = Number(id)
+
+    if (!postId) {
+        return reply.code(400).send({ message: 'ID de publicación requerido' })
+    }
+
+    try {
+        const post = await findPostById(postId)
+        if (!post) return reply.code(404).send({ message: 'Publicación no encontrada' })
+
+        const likeId = await modelLikePostById(user.id, postId)
+        if (!likeId) {
+            return reply.code(400).send({ message: 'No se pudo dar like (quizás ya diste like)' })
+        }
+
+        return reply.send({ message: 'Like agregado', likeId })
+    } catch (error) {
+        console.error('Error users like:', error)
+        return reply.code(500).send({ message: 'Error interno' })
+    }
+}
+
+// ==================== QUITAR LIKE (UNLIKE) ====================
+export async function unlikePostById(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).user
+    const { id } = req.params as { id: string }
+    const postId = Number(id)
+
+    if (!postId) {
+        return reply.code(400).send({ message: 'ID de publicación requerido' })
+    }
+
+    try {
+        const post = await findPostById(postId)
+        if (!post) {
+            return reply.code(404).send({ message: 'Publicación no encontrada' })
+        }
+
+        // Usamos unlikePost que toma userId y postId
+        const success = await unlikePost(user.id, postId)
+
+        if (success) {
+            return reply.send({ message: 'Like eliminado' })
+        }
+
+        return reply.code(400).send({ message: 'No tenías like en esta publicación o error al eliminar' })
+    } catch (error) {
+        console.error('Error unliking post:', error)
+        return reply.code(500).send({ message: 'Error interno' })
+    }
+}
+
+// ==================== MIS LIKES ====================
+export async function getMyLikedPosts(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).user
+    const { page = 1, pageSize = 20 } = req.query as { page?: number, pageSize?: number }
+
+    const validPage = Math.max(1, Number(page))
+    const validPageSize = Math.min(100, Math.max(1, Number(pageSize)))
+    const offset = (validPage - 1) * validPageSize
+
+    try {
+        const posts = await getLikedPostsByUserId(user.id, validPageSize, offset)
+        return reply.send({
+            page: validPage,
+            pageSize: validPageSize,
+            posts
+        })
+    } catch (error) {
+        console.error('Error getting liked posts:', error)
+        return reply.code(500).send({ message: 'Error interno' })
+    }
+}
+
+// ==================== COMENTAR ====================
+export async function addCommentToPost(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).user
+    const { id } = req.params as { id: string } // Post ID
+    const postId = Number(id)
+    const { content, parentId } = req.body as { content: string, parentId?: number }
+
+    if (!postId || !content) {
+        return reply.code(400).send({ message: 'Post ID y contenido son requeridos' })
+    }
+
+    try {
+        const post = await findPostById(postId)
+        if (!post) return reply.code(404).send({ message: 'Publicación no encontrada' })
+
+        const commentId = await modelAddCommentToPost(user.id, postId, parentId || null, content)
+
+        if (!commentId) {
+            return reply.code(500).send({ message: 'Error al comentar' })
+        }
+
+        return reply.code(201).send({ message: 'Comentario agregado', commentId })
+    } catch (error) {
+        console.error('Error adding comment:', error)
+        return reply.code(500).send({ message: 'Error interno' })
+    }
+}
+
+// ==================== ELIMINAR COMENTARIO ====================
+export async function deleteCommentById(req: FastifyRequest, reply: FastifyReply) {
+    const authType = (req as any).authType
+    const user = (req as any).user
+    const { id } = req.params as { id: string } // commentId
+    const commentId = Number(id)
+
+    try {
+        const comment = await getCommentById(commentId)
+        if (!comment) return reply.code(404).send({ message: 'Comentario no encontrado' })
+
+        if (authType === 'user' && comment.user_id !== user.id) {
+            return reply.code(403).send({ message: 'No puedes eliminar este comentario' })
+        }
+
+        const success = await modelDeleteCommentById(commentId)
+        if (success) return reply.send({ message: 'Comentario eliminado' })
+
+        return reply.code(500).send({ message: 'Error eliminando comentario' })
+    } catch (error) {
+        console.error('Error deleting comment:', error)
+        return reply.code(500).send({ message: 'Error interno' })
+    }
+}
+
+// ==================== OBTENER COMENTARIOS ====================
+export async function getCommentsByPostId(req: FastifyRequest, reply: FastifyReply) {
+    const { id } = req.params as { id: string }
+    const postId = Number(id)
+
+    try {
+        const comments = await modelGetCommentsByPostId(postId)
+        return reply.send({ comments })
+    } catch (error) {
+        console.error('Error fetching comments:', error)
+        return reply.code(500).send({ message: 'Error interno' })
     }
 }
