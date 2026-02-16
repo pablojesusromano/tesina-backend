@@ -25,15 +25,14 @@ export interface PostWithUserAndImages extends Post {
 export async function createPost(
     userId: number,
     title: string,
-    description: string
+    description: string,
+    status: number
 ): Promise<number | null> {
     try {
-        const borrador = await findStatusByName('BORRADOR')
-        if (!borrador) throw new Error('Status BORRADOR no encontrado en post_status')
 
         const [result] = await pool.query<ResultSetHeader>(
             `INSERT INTO posts (user_id, title, description, status_id) VALUES (?, ?, ?, ?)`,
-            [userId, title, description, borrador.id]
+            [userId, title, description, status]
         )
         return result.insertId
     } catch (error) {

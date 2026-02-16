@@ -100,12 +100,16 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
         let title: string | undefined
         let description: string | undefined
         let imagesMetadata: Array<{ index: number, latitude?: number, longitude?: number }> = []
+        let status: number | undefined
         const uploadedFiles: { filename: string; filepath: string }[] = []
 
         const parts = req.parts()
 
         for await (const part of parts) {
             if (part.type === 'field') {
+                if (part.fieldname === 'status') {
+                    status = Number(part.value)
+                }
                 if (part.fieldname === 'title') {
                     title = part.value as string
                 } else if (part.fieldname === 'description') {
@@ -180,7 +184,16 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
             })
         }
 
-        const postId = await createPost(user.id, title, description)
+        if (status === undefined) {
+            uploadedFiles.forEach(f => {
+                if (fs.existsSync(f.filepath)) fs.unlinkSync(f.filepath)
+            })
+            return reply.code(400).send({
+                message: 'El estado es obligatorio'
+            })
+        }
+
+        const postId = await createPost(user.id, title, description, status)
 
         if (!postId) {
             uploadedFiles.forEach(f => {
