@@ -236,7 +236,15 @@ export async function listPosts(req: FastifyRequest, reply: FastifyReply) {
         pageSize?: number
         statuses?: string | string[]
     }
-    const user = (req as any).user
+    
+    // Obtener userId según el tipo de autenticación
+    const userId = authType === 'admin' 
+        ? null
+        : (req as any).user?.id
+
+    if (authType === 'user' && !userId) {
+        return reply.code(401).send({ message: 'Usuario no autenticado' })
+    }
 
     const validPage = Math.max(1, Number(page))
     const validPageSize = Math.min(100, Math.max(1, Number(pageSize)))
@@ -255,7 +263,7 @@ export async function listPosts(req: FastifyRequest, reply: FastifyReply) {
     }
 
     try {
-        const posts = await getAllPosts(validPageSize, offset, statuses, user.id)
+        const posts = await getAllPosts(validPageSize, offset, statuses, userId ?? 0)
         const total = await countAllPosts(statuses)
 
         return reply.send({

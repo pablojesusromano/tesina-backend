@@ -46,7 +46,7 @@ export async function getAllPosts(
     limit: number = 20,
     offset: number = 0,
     statuses: PostStatusName[] = ['ACTIVO'],
-    userId: number
+    userId: number | null
 ): Promise<PostWithUserAndImages[]> {
     const statusIds = await resolveStatusIds(statuses)
     if (!statusIds.length) return []
@@ -68,13 +68,14 @@ export async function getAllPosts(
             u.image as user_image,
             count(c.id) as comments_count,
             s.name as species_name,
+            ${userId !== null ? `
             CASE 
                 WHEN EXISTS (
                     SELECT 1 FROM post_likes l 
                     WHERE l.post_id = p.id AND l.user_id = ?
                 ) THEN 1 
                 ELSE 0 
-            END as liked,
+            END` : '0'} as liked,
             count(l.id) as likes_count
         FROM posts p
         INNER JOIN post_status ps ON p.status_id = ps.id
@@ -86,7 +87,9 @@ export async function getAllPosts(
         GROUP BY p.id
         ORDER BY p.created_at DESC
         LIMIT ? OFFSET ?`,
-        [userId, ...statusIds, limit, offset]
+        userId !== null 
+            ? [userId, ...statusIds, limit, offset]
+            : [...statusIds, limit, offset]
     )
 
     const postsWithImages = await Promise.all(
