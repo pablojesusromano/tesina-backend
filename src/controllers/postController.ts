@@ -236,6 +236,7 @@ export async function listPosts(req: FastifyRequest, reply: FastifyReply) {
         pageSize?: number
         statuses?: string | string[]
     }
+    const user = (req as any).user
 
     const validPage = Math.max(1, Number(page))
     const validPageSize = Math.min(100, Math.max(1, Number(pageSize)))
@@ -254,7 +255,7 @@ export async function listPosts(req: FastifyRequest, reply: FastifyReply) {
     }
 
     try {
-        const posts = await getAllPosts(validPageSize, offset, statuses)
+        const posts = await getAllPosts(validPageSize, offset, statuses, user.id)
         const total = await countAllPosts(statuses)
 
         return reply.send({
@@ -688,3 +689,4 @@ export async function getCommentsByPostId(req: FastifyRequest, reply: FastifyRep
         return reply.code(500).send({ message: 'Error interno' })
     }
 }
+
