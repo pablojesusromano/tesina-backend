@@ -544,6 +544,98 @@ export async function deletePostById(req: FastifyRequest, reply: FastifyReply) {
     }
 }
 
+
+// ==================== APROBAR POST (SOLO ADMIN) ====================
+export async function approvePost(req: FastifyRequest, reply: FastifyReply) {
+    const { id } = req.params as { id: string }
+    const postId = Number(id)
+
+    try {
+        const post = await findPostById(postId)
+
+        if (!post) {
+            return reply.code(404).send({ message: 'Publicación no encontrada' })
+        }
+
+        // Verificar que el post esté en REVISION
+        if (post.status_name !== POST_STATUS_NAMES.REVISION) {
+            return reply.code(400).send({ 
+                message: `Solo se pueden aprobar publicaciones en revisión. Estado actual: ${post.status_name}` 
+            })
+        }
+
+        // Cambiar estado a ACTIVO
+        const success = await updatePostStatus(postId, POST_STATUS_NAMES.ACTIVO)
+
+        if (!success) {
+            return reply.code(500).send({ message: 'Error aprobando publicación' })
+        }
+
+        const updatedPost = await findPostById(postId)
+
+        // Enviar notificación push
+        sendSightingNotification(req.server, {
+            postId: postId,
+            userName: post.user_name || 'Usuario',
+            latitude: post.images?.[0]?.latitude ?? null,
+            longitude: post.images?.[0]?.longitude ?? null
+        }).catch(error => {
+            req.server.log.error({ msg: 'Error en notificación', error })
+        })
+
+        return reply.send({
+            message: 'Publicación aprobada y activada exitosamente',
+            post: updatedPost
+        })
+    } catch (error) {
+        console.error('Error aprobando post:', error)
+        return reply.code(500).send({ message: 'Error interno del servidor' })
+    }
+}
+
+// ==================== RECHAZAR POST (SOLO ADMIN) ====================
+export async function rejectPost(req: FastifyRequest, reply: FastifyReply) {
+    const { id } = req.params as { id: string }
+    const postId = Number(id)
+    const { reason } = req.body as { reason?: string }
+
+    try {
+        const post = await findPostById(postId)
+
+        if (!post) {
+            return reply.code(404).send({ message: 'Publicación no encontrada' })
+        }
+
+        // Verificar que el post esté en REVISION
+        if (post.status_name !== POST_STATUS_NAMES.REVISION) {
+            return reply.code(400).send({ 
+                message: `Solo se pueden rechazar publicaciones en revisión. Estado actual: ${post.status_name}` 
+            })
+        }
+
+        // Cambiar estado a RECHAZADO
+        const success = await updatePostStatus(postId, POST_STATUS_NAMES.RECHAZADO)
+
+        if (!success) {
+            return reply.code(500).send({ message: 'Error rechazando publicación' })
+        }
+
+        const updatedPost = await findPostById(postId)
+
+        // TODO: Aquí podrías enviar una notificación al usuario informando el rechazo
+        // y opcionalmente incluir la razón del rechazo
+
+        return reply.send({
+            message: 'Publicación rechazada exitosamente',
+            reason: reason || 'Sin motivo especificado',
+            post: updatedPost
+        })
+    } catch (error) {
+        console.error('Error rechazando post:', error)
+        return reply.code(500).send({ message: 'Error interno del servidor' })
+    }
+}
+
 // ==================== DAR LIKE A POST ====================
 export async function likePostById(req: FastifyRequest, reply: FastifyReply) {
     const user = (req as any).user

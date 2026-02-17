@@ -13,9 +13,11 @@ import {
     addCommentToPost,
     deleteCommentById,
     getMyLikedPosts,
-    getCommentsByPostId
+    getCommentsByPostId,
+    approvePost,
+    rejectPost
 } from '../controllers/postController.js'
-import { protectUserOrAdminRoute } from '../middlewares/authMiddleware.js'
+import { protectUserOrAdminRoute, protectAdminRoute } from '../middlewares/authMiddleware.js'
 import { validateUpdatePost, validateIdParam, validateUserIdParam, validateStatusUpdate } from '../middlewares/validateMiddleware.js'
 
 export default async function postRoutes(app: FastifyInstance) {
@@ -74,4 +76,16 @@ export default async function postRoutes(app: FastifyInstance) {
     app.delete('/:id', {
         preHandler: validateIdParam
     }, deletePostById)
+
+    // ==================== RUTAS ADMIN SOLO ====================
+    
+    // POST /posts/:id/approve - Aprobar post (REVISION → ACTIVO)
+    app.post('/:id/approve', {
+        preHandler: [protectAdminRoute, validateIdParam]
+    }, approvePost)
+    
+    // POST /posts/:id/reject - Rechazar post (REVISION → RECHAZADO)
+    app.post('/:id/reject', {
+        preHandler: [protectAdminRoute, validateIdParam]
+    }, rejectPost)
 }
