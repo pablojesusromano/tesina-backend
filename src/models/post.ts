@@ -75,15 +75,15 @@ export async function getAllPosts(
                 ) THEN 1 
                 ELSE 0 
             END as liked
-         FROM posts p
-         INNER JOIN post_status ps ON p.status_id = ps.id
-         INNER JOIN users u ON p.user_id = u.id
-         INNER JOIN comments c ON p.id = c.post_id
-         INNER JOIN species s ON s.id = p.species_id
-         LEFT JOIN likes l ON p.id = l.post_id AND l.user_id = ?
-         WHERE p.status_id IN (${ph})
-         ORDER BY p.created_at DESC
-         LIMIT ? OFFSET ?`,
+        FROM posts p
+        INNER JOIN post_status ps ON p.status_id = ps.id
+        INNER JOIN users u ON p.user_id = u.id
+        LEFT JOIN comments c ON p.id = c.post_id
+        INNER JOIN species s ON s.id = p.species_id
+        WHERE p.status_id IN (${ph})
+        GROUP BY p.id
+        ORDER BY p.created_at DESC
+        LIMIT ? OFFSET ?`,
         [userId, ...statusIds, limit, offset]
     )
 
