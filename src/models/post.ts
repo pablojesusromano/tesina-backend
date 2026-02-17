@@ -70,7 +70,7 @@ export async function getAllPosts(
             s.name as species_name,
             CASE 
                 WHEN EXISTS (
-                    SELECT 1 FROM likes l 
+                    SELECT 1 FROM post_likes l 
                     WHERE l.post_id = p.id AND l.user_id = ?
                 ) THEN 1 
                 ELSE 0 
