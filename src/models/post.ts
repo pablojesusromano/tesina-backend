@@ -74,7 +74,8 @@ export async function getAllPosts(
                     WHERE l.post_id = p.id AND l.user_id = ?
                 ) THEN 1 
                 ELSE 0 
-            END as liked
+            END as liked,
+            count(l.id) as likes_count
         FROM posts p
         INNER JOIN post_status ps ON p.status_id = ps.id
         INNER JOIN users u ON p.user_id = u.id
