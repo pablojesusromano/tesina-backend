@@ -80,6 +80,7 @@ export async function getAllPosts(
         INNER JOIN post_status ps ON p.status_id = ps.id
         INNER JOIN users u ON p.user_id = u.id
         LEFT JOIN comments c ON p.id = c.post_id
+        LEFT JOIN post_likes l ON p.id = l.post_id
         INNER JOIN species s ON s.id = p.specie_id
         WHERE p.status_id IN (${ph})
         GROUP BY p.id
