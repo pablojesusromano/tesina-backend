@@ -83,9 +83,11 @@ await app.register(firebaseAdmin)
 
 // rutas
 app.get('/health', async () => ({ status: 'ok' }))
-await app.register(authRoutes, { prefix: '/auth' })           // Admins
-await app.register(userAuthRoutes, { prefix: '/user-auth' })  // Users móvil
-await app.register(healthDb, { prefix: '/health' })
+await app.register(authRoutes, { prefix: '/api/auth' })        // Admins gestión
+await app.register(userAuthRoutes, { prefix: '/api/user-auth' })  // Users móvil
+
+await app.register(healthDb, { prefix: '/api/health' })
+
 await app.register(adminRoutes, { prefix: '/api/admins' })  // Gestión de admins
 await app.register(usersRoutes, { prefix: '/api/users' })  // Gestión de usuarios
 await app.register(userTypesRoutes, { prefix: '/api/user-types' })
