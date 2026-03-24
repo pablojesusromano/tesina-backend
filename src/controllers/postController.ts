@@ -25,6 +25,7 @@ import {
 } from '../models/postImage.js'
 import { POST_STATUS_NAMES, type PostStatusName, getAllStatusNames } from '../models/postStatus.js'
 import { sendSightingNotification } from '../services/firebaseCloudMessagingService.js'
+import { processAction } from '../services/gamificationService.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -101,6 +102,7 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
         let description: string | undefined
         let imagesMetadata: Array<{ index: number, latitude?: number, longitude?: number }> = []
         let status: number | undefined
+        let specieId: number | undefined
         const uploadedFiles: { filename: string; filepath: string }[] = []
 
         const parts = req.parts()
@@ -109,6 +111,8 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
             if (part.type === 'field') {
                 if (part.fieldname === 'status') {
                     status = Number(part.value)
+                } else if (part.fieldname === 'specie_id') {
+                    specieId = Number(part.value)
                 }
                 if (part.fieldname === 'title') {
                     title = part.value as string
@@ -193,7 +197,16 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
             })
         }
 
-        const postId = await createPost(user.id, title, description, status)
+        if (specieId === undefined) {
+            uploadedFiles.forEach(f => {
+                if (fs.existsSync(f.filepath)) fs.unlinkSync(f.filepath)
+            })
+            return reply.code(400).send({
+                message: 'La especie (specie_id) es obligatoria'
+            })
+        }
+
+        const postId = await createPost(user.id, title, description, status, specieId)
 
         if (!postId) {
             uploadedFiles.forEach(f => {
@@ -217,6 +230,10 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
 
         const newPost = await findPostById(postId)
 
+        // Gamificación:
+        processAction(user.id, 'primer_post')
+        processAction(user.id, 'publicar_post', { referenceId: postId })
+
         return reply.code(201).send({
             message: 'Publicación creada exitosamente',
             post: newPost
@@ -236,9 +253,9 @@ export async function listPosts(req: FastifyRequest, reply: FastifyReply) {
         pageSize?: number
         statuses?: string | string[]
     }
-    
+
     // Obtener userId según el tipo de autenticación
-    const userId = authType === 'admin' 
+    const userId = authType === 'admin'
         ? null
         : (req as any).user?.id
 
@@ -567,8 +584,8 @@ export async function approvePost(req: FastifyRequest, reply: FastifyReply) {
 
         // Verificar que el post esté en REVISION
         if (post.status_name !== POST_STATUS_NAMES.REVISION) {
-            return reply.code(400).send({ 
-                message: `Solo se pueden aprobar publicaciones en revisión. Estado actual: ${post.status_name}` 
+            return reply.code(400).send({
+                message: `Solo se pueden aprobar publicaciones en revisión. Estado actual: ${post.status_name}`
             })
         }
 
@@ -590,6 +607,9 @@ export async function approvePost(req: FastifyRequest, reply: FastifyReply) {
         }).catch(error => {
             req.server.log.error({ msg: 'Error en notificación', error })
         })
+
+        // Gamificación
+        processAction(post.user_id, 'post_aprobado', { referenceId: postId })
 
         return reply.send({
             message: 'Publicación aprobada y activada exitosamente',
@@ -616,8 +636,8 @@ export async function rejectPost(req: FastifyRequest, reply: FastifyReply) {
 
         // Verificar que el post esté en REVISION
         if (post.status_name !== POST_STATUS_NAMES.REVISION) {
-            return reply.code(400).send({ 
-                message: `Solo se pueden rechazar publicaciones en revisión. Estado actual: ${post.status_name}` 
+            return reply.code(400).send({
+                message: `Solo se pueden rechazar publicaciones en revisión. Estado actual: ${post.status_name}`
             })
         }
 
@@ -661,6 +681,11 @@ export async function likePostById(req: FastifyRequest, reply: FastifyReply) {
         const likeId = await modelLikePostById(user.id, postId)
         if (!likeId) {
             return reply.code(400).send({ message: 'No se pudo dar like (quizás ya diste like)' })
+        }
+
+        // Gamificación: Dar exp al autor del post (si no es el mismo usuario)
+        if (post.user_id !== user.id) {
+            processAction(post.user_id, 'recibir_like', { referenceId: postId, giverId: user.id })
         }
 
         return reply.send({ message: 'Like agregado', likeId })
@@ -743,6 +768,9 @@ export async function addCommentToPost(req: FastifyRequest, reply: FastifyReply)
         if (!commentId) {
             return reply.code(500).send({ message: 'Error al comentar' })
         }
+
+        // Gamificación
+        processAction(user.id, 'comentar_post', { referenceId: postId })
 
         return reply.code(201).send({ message: 'Comentario agregado', commentId })
     } catch (error) {

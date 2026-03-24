@@ -26,13 +26,14 @@ export async function createPost(
     userId: number,
     title: string,
     description: string,
-    status: number
+    status: number,
+    specieId: number
 ): Promise<number | null> {
     try {
 
         const [result] = await pool.query<ResultSetHeader>(
-            `INSERT INTO posts (user_id, title, description, status_id) VALUES (?, ?, ?, ?)`,
-            [userId, title, description, status]
+            `INSERT INTO posts (user_id, title, description, status_id, specie_id) VALUES (?, ?, ?, ?, ?)`,
+            [userId, title, description, status, specieId]
         )
         return result.insertId
     } catch (error) {

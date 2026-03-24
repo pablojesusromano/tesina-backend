@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { findUserByFirebaseUid, findUserByUsername, createUser, findUserById } from '../models/user.js'
 import { findUserTypeByName } from '../models/userType.js'
+import { processAction } from '../services/gamificationService.js'
 
 /** REGISTRO con Firebase */
 export async function firebaseRegister(req: FastifyRequest, reply: FastifyReply) {
@@ -135,21 +136,27 @@ export async function firebaseLogin(req: FastifyRequest, reply: FastifyReply) {
             { expiresIn: '7d' }
         )
 
+        // Gamificación: Registro diario
+        await processAction(user.id, 'registro_diario')
+
+        // Refrescar usuario por si subió de nivel/exp con el login
+        const updatedUser = await findUserById(user.id) || user
+
         // 4. Devolver tokens en el body
         return reply.send({
             message: 'Login exitoso',
             accessToken,
             refreshToken,
             user: {
-                id: user.id,
-                firebase_uid: user.firebase_uid,
-                username: user.username,
-                name: user.name,
-                image: user.image,
-                user_type_id: user.user_type_id,
-                points: user.points,
-                exp: user.exp,
-                level: user.level
+                id: updatedUser.id,
+                firebase_uid: updatedUser.firebase_uid,
+                username: updatedUser.username,
+                name: updatedUser.name,
+                image: updatedUser.image,
+                user_type_id: updatedUser.user_type_id,
+                points: updatedUser.points,
+                exp: updatedUser.exp,
+                level: updatedUser.level
             }
         })
 
@@ -189,6 +196,9 @@ export async function refreshUserToken(req: FastifyRequest, reply: FastifyReply)
             { userId, type: 'user' },
             { expiresIn: '7d' }
         )
+
+        // Gamificación: Registro diario (en caso de que renueve su sesión en un nuevo día)
+        await processAction(userId, 'registro_diario')
 
         return reply.send({
             message: 'Token renovado',

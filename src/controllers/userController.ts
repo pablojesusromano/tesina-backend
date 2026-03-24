@@ -67,7 +67,9 @@ export async function getRanking(req: FastifyRequest, reply: FastifyReply) {
          LIMIT 10`
     )
 
-    return reply.send(rows)
+    return reply.send({
+        data: rows
+    })
 }
 
 /** GET /users/me - Mi perfil */
