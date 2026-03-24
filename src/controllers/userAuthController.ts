@@ -78,7 +78,10 @@ export async function firebaseRegister(req: FastifyRequest, reply: FastifyReply)
                 firebase_uid: uid,
                 username,
                 name,
-                userTypeId
+                userTypeId,
+                points: 0,
+                exp: 0,
+                level: 0
             }
         })
 
@@ -144,7 +147,9 @@ export async function firebaseLogin(req: FastifyRequest, reply: FastifyReply) {
                 name: user.name,
                 image: user.image,
                 user_type_id: user.user_type_id,
-                points: user.points
+                points: user.points,
+                exp: user.exp,
+                level: user.level
             }
         })
 

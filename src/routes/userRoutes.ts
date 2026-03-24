@@ -3,7 +3,8 @@ import {
     listUsers,
     getMe,
     getUserById,
-    updateUser
+    updateUser,
+    getRanking
 } from '../controllers/userController.js'
 import { protectUserRoute } from '../middlewares/userAuthMiddleware.js'
 
@@ -19,6 +20,9 @@ export default async function usersRoutes(app: FastifyInstance) {
 
     // PATCH /users/:id - Actualizar perfil (solo el dueño)
     app.patch('/me', updateUser)
+
+    // GET /users/ranking - Ver ranking de usuarios
+    app.get('/ranking', getRanking)
 
     // GET /users/:id - Ver perfil de otro usuario (público para rankings)
     app.get('/:id', getUserById)

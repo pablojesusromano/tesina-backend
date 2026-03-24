@@ -9,6 +9,8 @@ export interface User {
     image: string | null
     user_type_id: number | null  // Opcional en la BD
     points: number
+    exp: number
+    level: number
     created_at: Date
     updated_at: Date | null
 }
@@ -45,7 +47,7 @@ export async function createUser(
     image?: string | null
 ): Promise<number | null> {
     const [result] = await pool.execute<ResultSetHeader>(
-        'INSERT INTO users (firebase_uid, name, username, user_type_id, image, points) VALUES (?, ?, ?, ?, ?, 0)',
+        'INSERT INTO users (firebase_uid, name, username, user_type_id, image, points, exp, level) VALUES (?, ?, ?, ?, ?, 0, 0, 0)',
         [firebaseUid, name, username, userTypeId || null, image || null]
     )
     return result.insertId || null
@@ -77,6 +79,14 @@ export async function updateUser(
     if (data.points !== undefined) {
         fields.push('points = ?')
         values.push(data.points)
+    }
+    if (data.exp !== undefined) {
+        fields.push('exp = ?')
+        values.push(data.exp)
+    }
+    if (data.level !== undefined) {
+        fields.push('level = ?')
+        values.push(data.level)
     }
 
     if (fields.length === 0) return false

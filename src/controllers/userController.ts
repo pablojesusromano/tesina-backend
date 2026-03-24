@@ -22,6 +22,8 @@ function sanitizeUser(u: User) {
         image: u.image,
         user_type_id: u.user_type_id,
         points: u.points,
+        exp: u.exp,
+        level: u.level,
         created_at: u.created_at,
         updated_at: u.updated_at
     }
@@ -33,11 +35,10 @@ export async function listUsers(req: FastifyRequest, reply: FastifyReply) {
     const pageSize = Math.min(100, Math.max(1, Number((req.query as any)?.pageSize ?? 20)))
     const offset = (page - 1) * pageSize
 
-    // Opcional: ordenar por puntos para rankings
     const orderBy = (req.query as any)?.orderBy === 'points' ? 'points DESC' : 'id ASC'
 
     const [rows] = await pool.query<(RowDataPacket & User)[]>(
-        `SELECT id, firebase_uid, username, name, image, user_type_id, points, created_at, updated_at
+        `SELECT id, firebase_uid, username, name, image, user_type_id, points, exp, level, created_at, updated_at
          FROM users
          ORDER BY ${orderBy}
          LIMIT ? OFFSET ?`,
@@ -55,6 +56,18 @@ export async function listUsers(req: FastifyRequest, reply: FastifyReply) {
         total,
         data: rows
     })
+}
+
+/** GET /users/ranking - Top 10 users by nivel y experiencia */
+export async function getRanking(req: FastifyRequest, reply: FastifyReply) {
+    const [rows] = await pool.query<(RowDataPacket & User)[]>(
+        `SELECT id, firebase_uid, username, name, image, user_type_id, points, exp, level, created_at, updated_at
+         FROM users
+         ORDER BY level DESC, exp DESC
+         LIMIT 10`
+    )
+
+    return reply.send(rows)
 }
 
 /** GET /users/me - Mi perfil */
@@ -87,11 +100,11 @@ export async function updateUser(req: FastifyRequest, reply: FastifyReply) {
 
         // Verificar si es multipart (incluye imagen)
         const contentType = req.headers['content-type'] || ''
-        
+
         if (contentType.includes('multipart/form-data')) {
             // Procesar multipart data
             const parts = req.parts()
-            
+
             for await (const part of parts) {
                 if (part.type === 'field') {
                     // Campos de texto
@@ -110,23 +123,23 @@ export async function updateUser(req: FastifyRequest, reply: FastifyReply) {
                 } else {
                     // Es un archivo (imagen)
                     if (uploadedImageUrl) {
-                        return reply.code(400).send({ 
-                            message: 'Solo se permite una imagen de perfil' 
+                        return reply.code(400).send({
+                            message: 'Solo se permite una imagen de perfil'
                         })
                     }
 
                     // Validar tipo
                     if (!ALLOWED_TYPES.includes(part.mimetype)) {
-                        return reply.code(400).send({ 
-                            message: 'Tipo de archivo no permitido. Solo JPG, PNG, WebP o HEIC' 
+                        return reply.code(400).send({
+                            message: 'Tipo de archivo no permitido. Solo JPG, PNG, WebP o HEIC'
                         })
                     }
 
                     // Validar tamaño
                     const buffer = await part.toBuffer()
                     if (buffer.length > MAX_PROFILE_IMAGE_SIZE) {
-                        return reply.code(400).send({ 
-                            message: `La imagen no debe superar ${MAX_PROFILE_IMAGE_SIZE / (1024 * 1024)}MB` 
+                        return reply.code(400).send({
+                            message: `La imagen no debe superar ${MAX_PROFILE_IMAGE_SIZE / (1024 * 1024)}MB`
                         })
                     }
 
@@ -159,7 +172,7 @@ export async function updateUser(req: FastifyRequest, reply: FastifyReply) {
         } else {
             // JSON regular (sin imagen)
             const body = (req.body as any) ?? {}
-            
+
             if (body.name !== undefined) updateData.name = body.name
             if (body.username !== undefined) updateData.username = body.username
             if (body.userTypeId !== undefined) {
@@ -183,7 +196,7 @@ export async function updateUser(req: FastifyRequest, reply: FastifyReply) {
 
         // Actualizar usuario
         const success = await updateUserModel(userId, updateData)
-        
+
         if (!success) {
             // Limpiar imagen si falla
             if (uploadedImageUrl) {
