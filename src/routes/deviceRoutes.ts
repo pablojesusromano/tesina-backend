@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { registerDevice, listUserDevices, modifyDeviceToken } from '../controllers/deviceController.js'
+import { registerDevice, listUserDevices, modifyDeviceToken, getMyDevices } from '../controllers/deviceController.js'
 import { protectUserOrAdminRoute } from '../middlewares/authMiddleware.js'
 
 export default async function deviceRoutes(app: FastifyInstance) {
@@ -7,5 +7,6 @@ export default async function deviceRoutes(app: FastifyInstance) {
 
     app.post('/', registerDevice)
     app.get('/user/:id', listUserDevices)
+    app.get('/me', getMyDevices)
     app.patch('/:id', modifyDeviceToken)
 }

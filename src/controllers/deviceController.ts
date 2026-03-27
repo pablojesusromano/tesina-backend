@@ -32,6 +32,18 @@ export async function listUserDevices(req: FastifyRequest, reply: FastifyReply) 
     }
 }
 
+export async function getMyDevices(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).user
+
+    try {
+        const devices = await getDevicesByUserId(user.id)
+        return reply.send({ devices })
+    } catch (error) {
+        console.error('Error listando dispositivos:', error)
+        return reply.code(500).send({ message: 'Error interno del servidor' })
+    }
+}
+
 export async function modifyDeviceToken(req: FastifyRequest, reply: FastifyReply) {
     const user = (req as any).user
     const { id } = req.params as { id: string }
