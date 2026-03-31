@@ -21,7 +21,6 @@ function sanitizeUser(u: User) {
         username: u.username,
         image: u.image,
         user_type_id: u.user_type_id,
-        points: u.points,
         exp: u.exp,
         level: u.level,
         created_at: u.created_at,
@@ -35,10 +34,10 @@ export async function listUsers(req: FastifyRequest, reply: FastifyReply) {
     const pageSize = Math.min(100, Math.max(1, Number((req.query as any)?.pageSize ?? 20)))
     const offset = (page - 1) * pageSize
 
-    const orderBy = (req.query as any)?.orderBy === 'points' ? 'points DESC' : 'id ASC'
+    const orderBy = (req.query as any)?.orderBy === 'exp' ? 'exp DESC' : 'id ASC'
 
     const [rows] = await pool.query<(RowDataPacket & User)[]>(
-        `SELECT id, firebase_uid, username, name, image, user_type_id, points, exp, level, created_at, updated_at
+        `SELECT id, firebase_uid, username, name, image, user_type_id, exp, level, created_at, updated_at
          FROM users
          ORDER BY ${orderBy}
          LIMIT ? OFFSET ?`,
@@ -61,7 +60,7 @@ export async function listUsers(req: FastifyRequest, reply: FastifyReply) {
 /** GET /users/ranking - Top 10 users by nivel y experiencia */
 export async function getRanking(req: FastifyRequest, reply: FastifyReply) {
     const [rows] = await pool.query<(RowDataPacket & User)[]>(
-        `SELECT id, firebase_uid, username, name, image, user_type_id, points, exp, level, created_at, updated_at
+        `SELECT id, firebase_uid, username, name, image, user_type_id, exp, level, created_at, updated_at
          FROM users
          ORDER BY level DESC, exp DESC
          LIMIT 10`

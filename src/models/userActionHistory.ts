@@ -8,7 +8,6 @@ export interface UserActionHistory {
     reference_id: number | null
     giver_id: number | null
     exp_earned: number
-    points_earned: number
     created_at: Date
 }
 
@@ -46,16 +45,15 @@ export async function createActionHistory(
     userId: number,
     actionRewardId: number,
     expEarned: number,
-    pointsEarned: number,
     referenceId?: number,
     giverId?: number
 ): Promise<number | null> {
     try {
         const [result] = await pool.query<ResultSetHeader>(
             `INSERT INTO user_action_history 
-            (user_id, action_reward_id, exp_earned, points_earned, reference_id, giver_id) 
-            VALUES (?, ?, ?, ?, ?, ?)`,
-            [userId, actionRewardId, expEarned, pointsEarned, referenceId ?? null, giverId ?? null]
+            (user_id, action_reward_id, exp_earned, reference_id, giver_id) 
+            VALUES (?, ?, ?, ?, ?)`,
+            [userId, actionRewardId, expEarned, referenceId ?? null, giverId ?? null]
         )
         return result.insertId
     } catch (e: any) {

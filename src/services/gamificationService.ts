@@ -52,7 +52,6 @@ export async function processAction(
             userId,
             reward.id,
             reward.exp_reward,
-            reward.points_reward,
             referenceId,
             giverId
         )
@@ -64,20 +63,18 @@ export async function processAction(
         if (!user) return false
 
         const newExp = user.exp + reward.exp_reward
-        const newPoints = user.points + reward.points_reward
 
         // La fórmula de nivel es: Nivel = Math.floor(exp / 100)
         const newLevel = Math.floor(newExp / 100)
 
         // Verificamos si los datos cambiaron para no hacer update innecesario
-        if (newExp !== user.exp || newPoints !== user.points || newLevel !== user.level) {
+        if (newExp !== user.exp || newLevel !== user.level) {
             await updateUser(userId, {
                 exp: newExp,
-                points: newPoints,
                 level: newLevel
             })
 
-            console.log(`[Gamification] User ${userId} earned ${reward.exp_reward} EXP and ${reward.points_reward} Points for ${actionKey}. New Level: ${newLevel}`)
+            console.log(`[Gamification] User ${userId} earned ${reward.exp_reward} EXP for ${actionKey}. New Level: ${newLevel}`)
         }
 
         return true

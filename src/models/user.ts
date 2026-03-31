@@ -8,7 +8,6 @@ export interface User {
     username: string | null  // Opcional en la BD
     image: string | null
     user_type_id: number | null  // Opcional en la BD
-    points: number
     exp: number
     level: number
     created_at: Date
@@ -47,7 +46,7 @@ export async function createUser(
     image?: string | null
 ): Promise<number | null> {
     const [result] = await pool.execute<ResultSetHeader>(
-        'INSERT INTO users (firebase_uid, name, username, user_type_id, image, points, exp, level) VALUES (?, ?, ?, ?, ?, 0, 0, 0)',
+        'INSERT INTO users (firebase_uid, name, username, user_type_id, image, exp, level) VALUES (?, ?, ?, ?, ?, 0, 0)',
         [firebaseUid, name, username, userTypeId || null, image || null]
     )
     return result.insertId || null
@@ -76,10 +75,6 @@ export async function updateUser(
         fields.push('user_type_id = ?')
         values.push(data.user_type_id)
     }
-    if (data.points !== undefined) {
-        fields.push('points = ?')
-        values.push(data.points)
-    }
     if (data.exp !== undefined) {
         fields.push('exp = ?')
         values.push(data.exp)
@@ -99,13 +94,7 @@ export async function updateUser(
     return result.affectedRows > 0
 }
 
-export async function addPoints(userId: number, points: number): Promise<boolean> {
-    const [result] = await pool.execute<ResultSetHeader>(
-        'UPDATE users SET points = points + ? WHERE id = ?',
-        [points, userId]
-    )
-    return result.affectedRows > 0
-}
+
 
 export async function deleteUser(id: number): Promise<boolean> {
     const [result] = await pool.execute<ResultSetHeader>(

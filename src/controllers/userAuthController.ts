@@ -80,7 +80,6 @@ export async function firebaseRegister(req: FastifyRequest, reply: FastifyReply)
                 username,
                 name,
                 userTypeId,
-                points: 0,
                 exp: 0,
                 level: 0
             }
@@ -154,7 +153,6 @@ export async function firebaseLogin(req: FastifyRequest, reply: FastifyReply) {
                 name: updatedUser.name,
                 image: updatedUser.image,
                 user_type_id: updatedUser.user_type_id,
-                points: updatedUser.points,
                 exp: updatedUser.exp,
                 level: updatedUser.level
             }
