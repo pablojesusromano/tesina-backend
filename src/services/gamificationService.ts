@@ -1,6 +1,8 @@
 import { findActionRewardByKey } from '../models/actionReward.js'
-import { hasActionHistory, createActionHistory } from '../models/userActionHistory.js'
+import { hasActionHistory, createActionHistory, calculateUserTotalExp } from '../models/userActionHistory.js'
 import { findUserById, updateUser } from '../models/user.js'
+import { findNotificationTypeByKey } from '../models/notificationType.js'
+import { createNotification } from '../models/notification.js'
 
 export async function processAction(
     userId: number,
@@ -53,28 +55,28 @@ export async function processAction(
             reward.id,
             reward.exp_reward,
             referenceId,
-            giverId
+            giverId,
+            false // Puntos están pendientes de reclamo
         )
 
         if (!insertedId) return false
 
-        // Actualizar datos del usuario: EXP, Nivel y Puntos
-        const user = await findUserById(userId)
-        if (!user) return false
+        // NO actualizamos users.exp o users.level aquí, ya que el reclamo es diferido.
+        console.log(`[Gamification] User ${userId} action ${actionKey} logged. Pending claim for ${reward.exp_reward} EXP.`)
 
-        const newExp = user.exp + reward.exp_reward
-
-        // La fórmula de nivel es: Nivel = Math.floor(exp / 100)
-        const newLevel = Math.floor(newExp / 100)
-
-        // Verificamos si los datos cambiaron para no hacer update innecesario
-        if (newExp !== user.exp || newLevel !== user.level) {
-            await updateUser(userId, {
-                exp: newExp,
-                level: newLevel
-            })
-
-            console.log(`[Gamification] User ${userId} earned ${reward.exp_reward} EXP for ${actionKey}. New Level: ${newLevel}`)
+        // Buscar si existe un template de notificación asociado a esta acción y enviarlo
+        try {
+            const notifType = await findNotificationTypeByKey(actionKey)
+            if (notifType && reward.exp_reward > 0) {
+                await createNotification(userId, notifType.id, {
+                    type: 'gamification_action',
+                    prizeAmount: reward.exp_reward,
+                    referenceId: referenceId || null,
+                    historyId: insertedId // Ocultamos el historyId para liberarlo después
+                })
+            }
+        } catch (err) {
+            console.error(`[Gamification Error] Notification creation failed for ${actionKey}`, err)
         }
 
         return true

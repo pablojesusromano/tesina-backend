@@ -46,7 +46,7 @@ export async function createUser(
     image?: string | null
 ): Promise<number | null> {
     const [result] = await pool.execute<ResultSetHeader>(
-        'INSERT INTO users (firebase_uid, name, username, user_type_id, image, exp, level) VALUES (?, ?, ?, ?, ?, 0, 0)',
+        'INSERT INTO users (firebase_uid, name, username, user_type_id, image, exp, level) VALUES (?, ?, ?, ?, ?, 0, 1)',
         [firebaseUid, name, username, userTypeId || null, image || null]
     )
     return result.insertId || null

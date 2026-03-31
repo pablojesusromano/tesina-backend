@@ -8,6 +8,7 @@ export interface UserActionHistory {
     reference_id: number | null
     giver_id: number | null
     exp_earned: number
+    is_claimed: boolean
     created_at: Date
 }
 
@@ -46,14 +47,15 @@ export async function createActionHistory(
     actionRewardId: number,
     expEarned: number,
     referenceId?: number,
-    giverId?: number
+    giverId?: number,
+    isClaimed: boolean = false
 ): Promise<number | null> {
     try {
         const [result] = await pool.query<ResultSetHeader>(
             `INSERT INTO user_action_history 
-            (user_id, action_reward_id, exp_earned, reference_id, giver_id) 
-            VALUES (?, ?, ?, ?, ?)`,
-            [userId, actionRewardId, expEarned, referenceId ?? null, giverId ?? null]
+            (user_id, action_reward_id, exp_earned, reference_id, giver_id, is_claimed) 
+            VALUES (?, ?, ?, ?, ?, ?)`,
+            [userId, actionRewardId, expEarned, referenceId ?? null, giverId ?? null, isClaimed]
         )
         return result.insertId
     } catch (e: any) {
@@ -61,3 +63,20 @@ export async function createActionHistory(
         return null
     }
 }
+
+export async function calculateUserTotalExp(userId: number): Promise<number> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+        'SELECT SUM(exp_earned) as totalExp FROM user_action_history WHERE user_id = ? AND is_claimed = 1',
+        [userId]
+    )
+    return Number(rows[0]?.totalExp) || 0
+}
+
+export async function markActionHistoryAsClaimed(id: number): Promise<boolean> {
+    const [result] = await pool.query<ResultSetHeader>(
+        'UPDATE user_action_history SET is_claimed = 1 WHERE id = ?',
+        [id]
+    )
+    return result.affectedRows > 0
+}
+

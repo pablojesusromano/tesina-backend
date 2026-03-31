@@ -81,7 +81,7 @@ export async function firebaseRegister(req: FastifyRequest, reply: FastifyReply)
                 name,
                 userTypeId,
                 exp: 0,
-                level: 0
+                level: 1
             }
         })
 
@@ -167,7 +167,7 @@ export async function firebaseLogin(req: FastifyRequest, reply: FastifyReply) {
 /** REFRESH TOKEN */
 export async function refreshUserToken(req: FastifyRequest, reply: FastifyReply) {
     const { refreshToken } = req.body as { refreshToken?: string }
-    
+
     if (!refreshToken) {
         return reply.code(401).send({ message: 'Falta refresh token' })
     }
@@ -205,7 +205,7 @@ export async function refreshUserToken(req: FastifyRequest, reply: FastifyReply)
         })
     } catch (err: any) {
         if (err.name === 'TokenExpiredError') {
-            return reply.code(403).send({ 
+            return reply.code(403).send({
                 message: 'Refresh token expirado',
                 code: 'REFRESH_TOKEN_EXPIRED'
             })

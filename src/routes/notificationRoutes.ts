@@ -1,13 +1,28 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { protectAdminRoute } from '../middlewares/authMiddleware.js'
+import { protectAdminRoute, protectUserOrAdminRoute } from '../middlewares/authMiddleware.js'
+import {
+    getMyNotifications,
+    readNotification,
+    claimNotification,
+    broadcastNotification
+} from '../controllers/notificationController.js'
 import { sendSightingNotification } from '../services/firebaseCloudMessagingService.js'
 import { findPostById } from '../models/post.js'
 
 export default async function notificationRoutes(app: FastifyInstance) {
-    app.addHook('preHandler', protectAdminRoute)
+
+    // ==== RUTAS PARA USUARIO FINAL ====
+    // Se protege con protectUserOrAdminRoute para que acepte Bearer tokens de users móviles
+    app.get('/me', { preHandler: [protectUserOrAdminRoute] }, getMyNotifications)
+    app.patch('/:id/read', { preHandler: [protectUserOrAdminRoute] }, readNotification)
+    app.patch('/:id/claim', { preHandler: [protectUserOrAdminRoute] }, claimNotification)
+
+
+    // ==== RUTAS PARA ADMIN (Gestión interna/Broadcast/Pruebas FCM) ====
+    app.post('/broadcast', { preHandler: [protectAdminRoute] }, broadcastNotification)
 
     // POST /notifications/test - Enviar notificación de prueba
-    app.post('/test', async (req: FastifyRequest, reply: FastifyReply) => {
+    app.post('/test', { preHandler: [protectAdminRoute] }, async (req: FastifyRequest, reply: FastifyReply) => {
         const { postId } = req.body as { postId: number }
 
         if (!postId) {
@@ -28,18 +43,18 @@ export default async function notificationRoutes(app: FastifyInstance) {
                 longitude: post.images?.[0]?.longitude ?? null
             })
 
-            return reply.send({ 
-                message: 'Notificación de prueba enviada',
-                postId 
+            return reply.send({
+                message: 'Notificación de FCM (Firebase) enviada para ese post',
+                postId
             })
         } catch (error) {
             app.log.error({ msg: 'Error enviando notificación de prueba', error })
-            return reply.code(500).send({ message: 'Error enviando notificación' })
+            return reply.code(500).send({ message: 'Error enviando notificación FCM' })
         }
     })
 
     // POST /notifications/test-simple - Notificación simple
-    app.post('/test-simple', async (req: FastifyRequest, reply: FastifyReply) => {
+    app.post('/test-simple', { preHandler: [protectAdminRoute] }, async (req: FastifyRequest, reply: FastifyReply) => {
         try {
             const message = {
                 topic: 'sightings',
@@ -54,7 +69,7 @@ export default async function notificationRoutes(app: FastifyInstance) {
 
             const response = await app.firebase.messaging().send(message)
 
-            return reply.send({ 
+            return reply.send({
                 message: 'Notificación enviada',
                 messageId: response
             })
