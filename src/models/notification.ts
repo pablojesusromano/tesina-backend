@@ -48,7 +48,7 @@ export async function getUserNotifications(userId: number): Promise<AppNotificat
         `SELECT n.*, t.key as n_key, t.title, t.body 
          FROM notifications n
          INNER JOIN notification_types t ON t.id = n.notification_type_id
-         WHERE n.user_id = ?
+         WHERE n.user_id = ? AND n.is_claimed = 0
          ORDER BY n.id DESC`,
         [userId]
     )
