@@ -3,6 +3,7 @@ import { pool } from '../db/db.js'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 import { findUserById, findUserByUsername, updateUser as updateUserModel } from '../models/user.js'
 import { findUserTypeById } from '../models/userType.js'
+import { getDiscoveredSpeciesByUser } from '../models/species.js'
 import type { User } from '../models/user.js'
 import { UPLOADS_BASE_URL_PROFILE, ALLOWED_TYPES, MAX_PROFILE_IMAGE_SIZE } from '../config/upload.js'
 import fs from 'fs'
@@ -226,5 +227,19 @@ export async function updateUser(req: FastifyRequest, reply: FastifyReply) {
             return reply.code(409).send({ message: 'Username ya en uso' })
         }
         return reply.code(500).send({ message: 'Error actualizando usuario' })
+    }
+}
+
+/** GET /users/me/discovered-species - Ver especies descubiertas por el usuario logeado */
+export async function getDiscoveredSpecies(req: FastifyRequest, reply: FastifyReply) {
+    const auth = (req as any).user
+    const userId = auth.id
+
+    try {
+        const species = await getDiscoveredSpeciesByUser(userId)
+        return reply.send({ data: species })
+    } catch (err: any) {
+        console.error('Error obteniendo especies descubiertas:', err)
+        return reply.code(500).send({ message: 'Error interno del servidor' })
     }
 }

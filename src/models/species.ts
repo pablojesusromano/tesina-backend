@@ -180,12 +180,12 @@ export async function deleteSpecies(speciesId: number): Promise<boolean> {
 
 // ==================== VERIFICAR SI EXISTE NOMBRE ====================
 export async function speciesNameExists(name: string, excludeId?: number): Promise<boolean> {
-    const query = excludeId 
+    const query = excludeId
         ? 'SELECT id FROM species WHERE name = ? AND id != ?'
         : 'SELECT id FROM species WHERE name = ?'
-    
+
     const params = excludeId ? [name, excludeId] : [name]
-    
+
     const [rows] = await pool.query<RowDataPacket[]>(query, params)
     return rows.length > 0
 }
@@ -207,4 +207,17 @@ export async function hasAssociatedPosts(speciesId: number): Promise<boolean> {
     // )
     // return rows[0]?.total > 0
     return false
+}
+
+// ==================== OBTENER ESPECIES DESCUBIERTAS POR USUARIO ====================
+export async function getDiscoveredSpeciesByUser(userId: number): Promise<Species[]> {
+    const [rows] = await pool.query<(RowDataPacket & Species)[]>(
+        `SELECT DISTINCT s.*
+         FROM species s
+         INNER JOIN posts p ON s.id = p.specie_id
+         INNER JOIN post_status ps ON p.status_id = ps.id
+         WHERE p.user_id = ? AND ps.name = 'ACTIVO'`,
+        [userId]
+    )
+    return rows
 }
