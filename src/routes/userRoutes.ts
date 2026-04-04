@@ -6,7 +6,9 @@ import {
     updateUser,
     getRanking,
     getDiscoveredSpecies,
-    getMyTimeline
+    getMyTimeline,
+    getMyStreak,
+    getStreakLeaderboard
 } from '../controllers/userController.js'
 import { protectUserRoute } from '../middlewares/userAuthMiddleware.js'
 
@@ -26,11 +28,17 @@ export default async function usersRoutes(app: FastifyInstance) {
     // GET /users/me/timeline - Línea de vida del usuario
     app.get('/me/timeline', getMyTimeline)
 
-    // PATCH /users/:id - Actualizar perfil (solo el dueño)
+    // GET /users/me/streak - Racha de días consecutivos
+    app.get('/me/streak', getMyStreak)
+
+    // PATCH /users/me - Actualizar perfil (solo el dueño)
     app.patch('/me', updateUser)
 
     // GET /users/ranking - Ver ranking de usuarios
     app.get('/ranking', getRanking)
+
+    // GET /users/streak-ranking - Ranking de rachas de días conectados
+    app.get('/streak-ranking', getStreakLeaderboard)
 
     // GET /users/:id - Ver perfil de otro usuario (público para rankings)
     app.get('/:id', getUserById)

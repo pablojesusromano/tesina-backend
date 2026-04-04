@@ -4,7 +4,7 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 import { findUserById, findUserByUsername, updateUser as updateUserModel } from '../models/user.js'
 import { findUserTypeById } from '../models/userType.js'
 import { getDiscoveredSpeciesByUser } from '../models/species.js'
-import { getUserTimeline } from '../models/userActionHistory.js'
+import { getUserTimeline, getUserStreak, getStreakRanking } from '../models/userActionHistory.js'
 import type { User } from '../models/user.js'
 import { UPLOADS_BASE_URL_PROFILE, ALLOWED_TYPES, MAX_PROFILE_IMAGE_SIZE } from '../config/upload.js'
 import fs from 'fs'
@@ -338,6 +338,32 @@ export async function getMyTimeline(req: FastifyRequest, reply: FastifyReply) {
         return reply.send({ data: timeline })
     } catch (err: any) {
         console.error('Error obteniendo timeline:', err)
+        return reply.code(500).send({ message: 'Error interno del servidor' })
+    }
+}
+
+/** GET /users/me/streak - Racha de días consecutivos del usuario logueado */
+export async function getMyStreak(req: FastifyRequest, reply: FastifyReply) {
+    const auth = (req as any).user
+
+    try {
+        const streak = await getUserStreak(auth.id)
+        return reply.send({ data: { streak } })
+    } catch (err: any) {
+        console.error('Error obteniendo streak:', err)
+        return reply.code(500).send({ message: 'Error interno del servidor' })
+    }
+}
+
+/** GET /users/streak-ranking - Ranking de rachas de días conectados */
+export async function getStreakLeaderboard(req: FastifyRequest, reply: FastifyReply) {
+    const limit = Math.min(50, Math.max(1, Number((req.query as any)?.limit ?? 20)))
+
+    try {
+        const ranking = await getStreakRanking(limit)
+        return reply.send({ data: ranking })
+    } catch (err: any) {
+        console.error('Error obteniendo streak ranking:', err)
         return reply.code(500).send({ message: 'Error interno del servidor' })
     }
 }

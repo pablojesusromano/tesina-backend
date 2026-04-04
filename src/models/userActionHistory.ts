@@ -101,3 +101,63 @@ export async function getUserTimeline(userId: number): Promise<any[]> {
     )
     return rows
 }
+
+export async function getUserStreak(userId: number): Promise<number> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+        `WITH login_dates AS (
+            SELECT DISTINCT DATE(uah.created_at) as login_date
+            FROM user_action_history uah
+            INNER JOIN action_rewards ar ON ar.id = uah.action_reward_id
+            WHERE uah.user_id = ? AND ar.action_key = 'registro_diario'
+        ),
+        grouped AS (
+            SELECT login_date,
+                DATE_SUB(login_date, INTERVAL ROW_NUMBER() OVER (ORDER BY login_date) DAY) as grp
+            FROM login_dates
+        ),
+        streaks AS (
+            SELECT grp, COUNT(*) as streak_length, MAX(login_date) as last_date
+            FROM grouped
+            GROUP BY grp
+        )
+        SELECT COALESCE(MAX(streak_length), 0) as current_streak
+        FROM streaks
+        WHERE last_date >= CURDATE() - INTERVAL 1 DAY`,
+        [userId]
+    )
+    return Number(rows[0]?.current_streak) || 0
+}
+
+export async function getStreakRanking(limit: number = 20): Promise<any[]> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+        `WITH login_dates AS (
+            SELECT DISTINCT uah.user_id, DATE(uah.created_at) as login_date
+            FROM user_action_history uah
+            INNER JOIN action_rewards ar ON ar.id = uah.action_reward_id
+            WHERE ar.action_key = 'registro_diario'
+        ),
+        grouped AS (
+            SELECT user_id, login_date,
+                DATE_SUB(login_date, INTERVAL ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY login_date) DAY) as grp
+            FROM login_dates
+        ),
+        streaks AS (
+            SELECT user_id, grp, COUNT(*) as streak_length, MAX(login_date) as last_date
+            FROM grouped
+            GROUP BY user_id, grp
+        ),
+        current_streaks AS (
+            SELECT user_id, MAX(streak_length) as streak
+            FROM streaks
+            WHERE last_date >= CURDATE() - INTERVAL 1 DAY
+            GROUP BY user_id
+        )
+        SELECT cs.user_id, cs.streak, u.username, u.name, u.image
+        FROM current_streaks cs
+        INNER JOIN users u ON u.id = cs.user_id
+        ORDER BY cs.streak DESC
+        LIMIT ?`,
+        [limit]
+    )
+    return rows
+}
