@@ -59,7 +59,7 @@ export async function claimTrophy(req: FastifyRequest, reply: FastifyReply) {
             user.id,
             trophyReward.id,
             thisTrophy.exp_reward,
-            trophyId,
+            undefined, // No necesita reference_id, user_trophies ya previene duplicados
             undefined,
             true // ya reclamada directamente
         )

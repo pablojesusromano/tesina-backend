@@ -245,13 +245,96 @@ export async function getDiscoveredSpecies(req: FastifyRequest, reply: FastifyRe
     }
 }
 
-/** GET /users/me/timeline - Línea de vida del usuario logueado */
+/** GET /users/me/timeline - Línea de vida unificada (notificaciones + trofeos) */
 export async function getMyTimeline(req: FastifyRequest, reply: FastifyReply) {
     const auth = (req as any).user
     const userId = auth.id
 
     try {
-        const timeline = await getUserTimeline(userId)
+        // 1. Traer notificaciones reclamadas (hitos cumplidos)
+        const [notifRows] = await pool.query<RowDataPacket[]>(
+            `SELECT 
+                n.id,
+                n.created_at as date,
+                n.is_claimed,
+                n.data,
+                nt.key as n_key,
+                nt.title,
+                nt.body,
+                COALESCE(at2.key, 'general') as action_type_key,
+                COALESCE(at2.name, 'General') as action_type_name
+             FROM notifications n
+             INNER JOIN notification_types nt ON nt.id = n.notification_type_id
+             LEFT JOIN action_rewards ar ON ar.action_key = nt.key
+             LEFT JOIN action_types at2 ON at2.id = ar.action_type_id
+             WHERE n.user_id = ?
+             ORDER BY n.created_at DESC`,
+            [userId]
+        )
+
+        // 2. Traer trofeos desbloqueados
+        const [trophyRows] = await pool.query<RowDataPacket[]>(
+            `SELECT 
+                ut.id,
+                ut.unlocked_at as date,
+                ut.is_claimed,
+                t.key as trophy_key,
+                t.name,
+                t.description,
+                t.exp_reward,
+                t.rarity
+             FROM user_trophies ut
+             INNER JOIN trophies t ON t.id = ut.trophy_id
+             WHERE ut.user_id = ?
+             ORDER BY ut.unlocked_at DESC`,
+            [userId]
+        )
+
+        // 3. Mapear notificaciones al formato unificado
+        const notifItems = notifRows.map((n: any) => {
+            let dataObj: any = {}
+            if (typeof n.data === 'string') {
+                try { dataObj = JSON.parse(n.data) } catch (e) { }
+            } else if (n.data) {
+                dataObj = n.data
+            }
+
+            // Reemplazo de variables en el body
+            let finalBody = (n.body || '').replace(/\{([^}]+)\}/g, (match: string, key: string) => {
+                return dataObj[key] !== undefined ? dataObj[key] : match
+            })
+
+            return {
+                source: 'notification',
+                title: n.title || '',
+                description: finalBody,
+                exp_earned: dataObj.prizeAmount || 0,
+                date: n.date,
+                is_claimed: Boolean(n.is_claimed),
+                action_type_key: n.action_type_key,
+                action_type_name: n.action_type_name,
+                rarity: null
+            }
+        })
+
+        // 4. Mapear trofeos al formato unificado
+        const trophyItems = trophyRows.map((t: any) => ({
+            source: 'trophy',
+            title: t.name,
+            description: t.description,
+            exp_earned: t.exp_reward,
+            date: t.date,
+            is_claimed: Boolean(t.is_claimed),
+            action_type_key: 'logro',
+            action_type_name: 'Logro',
+            rarity: t.rarity
+        }))
+
+        // 5. Mezclar y ordenar por fecha descendente
+        const timeline = [...notifItems, ...trophyItems].sort((a, b) => {
+            return new Date(b.date).getTime() - new Date(a.date).getTime()
+        })
+
         return reply.send({ data: timeline })
     } catch (err: any) {
         console.error('Error obteniendo timeline:', err)
