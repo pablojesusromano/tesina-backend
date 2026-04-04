@@ -67,7 +67,7 @@ export async function getAllPosts(
             u.name as user_name,
             u.username as user_username,
             u.image as user_image,
-            count(c.id) as comments_count,
+            count(DISTINCT c.id) as comments_count,
             s.name as species_name,
             ${userId !== null ? `
             CASE 
@@ -77,7 +77,7 @@ export async function getAllPosts(
                 ) THEN 1 
                 ELSE 0 
             END` : '0'} as liked,
-            count(l.id) as likes_count
+            count(DISTINCT l.id) as likes_count
         FROM posts p
         INNER JOIN post_status ps ON p.status_id = ps.id
         INNER JOIN users u ON p.user_id = u.id

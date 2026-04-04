@@ -89,12 +89,9 @@ export async function getUserTimeline(userId: number): Promise<any[]> {
             uah.is_claimed,
             uah.created_at,
             ar.action_key,
-            ar.description as action_description,
-            at2.key as action_type_key,
-            at2.name as action_type_name
+            ar.description as action_description
          FROM user_action_history uah
          INNER JOIN action_rewards ar ON ar.id = uah.action_reward_id
-         LEFT JOIN action_types at2 ON at2.id = ar.action_type_id
          WHERE uah.user_id = ?
          ORDER BY uah.created_at DESC`,
         [userId]

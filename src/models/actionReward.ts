@@ -5,7 +5,6 @@ export interface ActionReward {
     id: number
     action_key: string
     exp_reward: number
-    action_type_id: number | null
     description: string | null
     created_at: Date
     updated_at: Date

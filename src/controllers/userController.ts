@@ -260,13 +260,9 @@ export async function getMyTimeline(req: FastifyRequest, reply: FastifyReply) {
                 n.data,
                 nt.key as n_key,
                 nt.title,
-                nt.body,
-                COALESCE(at2.key, 'general') as action_type_key,
-                COALESCE(at2.name, 'General') as action_type_name
+                nt.body
              FROM notifications n
              INNER JOIN notification_types nt ON nt.id = n.notification_type_id
-             LEFT JOIN action_rewards ar ON ar.action_key = nt.key
-             LEFT JOIN action_types at2 ON at2.id = ar.action_type_id
              WHERE n.user_id = ?
              ORDER BY n.created_at DESC`,
             [userId]
@@ -311,8 +307,6 @@ export async function getMyTimeline(req: FastifyRequest, reply: FastifyReply) {
                 exp_earned: dataObj.prizeAmount || 0,
                 date: n.date,
                 is_claimed: Boolean(n.is_claimed),
-                action_type_key: n.action_type_key,
-                action_type_name: n.action_type_name,
                 rarity: null
             }
         })
@@ -325,8 +319,6 @@ export async function getMyTimeline(req: FastifyRequest, reply: FastifyReply) {
             exp_earned: t.exp_reward,
             date: t.date,
             is_claimed: Boolean(t.is_claimed),
-            action_type_key: 'logro',
-            action_type_name: 'Logro',
             rarity: t.rarity
         }))
 
