@@ -81,3 +81,15 @@ export async function markNotificationAsClaimed(id: number, userId: number): Pro
     )
     return result.affectedRows > 0
 }
+
+export async function getUserNotificationHistory(userId: number): Promise<AppNotification[]> {
+    const [rows] = await pool.query<(AppNotification & RowDataPacket)[]>(
+        `SELECT n.*, t.key as n_key, t.title, t.body 
+         FROM notifications n
+         INNER JOIN notification_types t ON t.id = n.notification_type_id
+         WHERE n.user_id = ?
+         ORDER BY n.id DESC`,
+        [userId]
+    )
+    return rows
+}

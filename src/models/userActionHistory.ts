@@ -80,3 +80,21 @@ export async function markActionHistoryAsClaimed(id: number): Promise<boolean> {
     return result.affectedRows > 0
 }
 
+export async function getUserTimeline(userId: number): Promise<any[]> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+        `SELECT 
+            uah.id,
+            uah.exp_earned,
+            uah.reference_id,
+            uah.is_claimed,
+            uah.created_at,
+            ar.action_key,
+            ar.description as action_description
+         FROM user_action_history uah
+         INNER JOIN action_rewards ar ON ar.id = uah.action_reward_id
+         WHERE uah.user_id = ?
+         ORDER BY uah.created_at DESC`,
+        [userId]
+    )
+    return rows
+}

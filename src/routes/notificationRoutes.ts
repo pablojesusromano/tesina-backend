@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { protectAdminRoute, protectUserOrAdminRoute } from '../middlewares/authMiddleware.js'
 import {
     getMyNotifications,
+    getMyNotificationHistory,
     readNotification,
     claimNotification,
     broadcastNotification
@@ -14,6 +15,7 @@ export default async function notificationRoutes(app: FastifyInstance) {
     // ==== RUTAS PARA USUARIO FINAL ====
     // Se protege con protectUserOrAdminRoute para que acepte Bearer tokens de users móviles
     app.get('/me', { preHandler: [protectUserOrAdminRoute] }, getMyNotifications)
+    app.get('/me/history', { preHandler: [protectUserOrAdminRoute] }, getMyNotificationHistory)
     app.patch('/:id/read', { preHandler: [protectUserOrAdminRoute] }, readNotification)
     app.patch('/:id/claim', { preHandler: [protectUserOrAdminRoute] }, claimNotification)
 

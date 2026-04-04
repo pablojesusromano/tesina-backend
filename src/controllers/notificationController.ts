@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import {
     getUserNotifications,
+    getUserNotificationHistory,
     markNotificationAsRead,
     markNotificationAsClaimed,
     getNotificationById,
@@ -50,6 +51,49 @@ export async function getMyNotifications(req: FastifyRequest, reply: FastifyRepl
     } catch (error) {
         console.error('Error listing notifications', error)
         return reply.code(500).send({ message: 'Error interno obteniendo notificaciones' })
+    }
+}
+
+export async function getMyNotificationHistory(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).user
+    try {
+        const notifications = await getUserNotificationHistory(user.id)
+
+        const parsed = notifications.map(notif => {
+            let finalBody = notif.body || ''
+            const finalTitle = notif.title || ''
+
+            let dataObj: any = {}
+            if (typeof notif.data === 'string') {
+                try {
+                    dataObj = JSON.parse(notif.data)
+                } catch (e) { }
+            } else if (notif.data) {
+                dataObj = notif.data
+            }
+
+            const varRegex = /\{([^}]+)\}/g
+            finalBody = finalBody.replace(varRegex, (match, key) => {
+                return dataObj && dataObj[key] !== undefined ? dataObj[key] : match
+            })
+
+            return {
+                id: notif.id,
+                n_key: notif.n_key,
+                type: notif.type,
+                title: finalTitle,
+                body: finalBody,
+                original_data: dataObj,
+                is_read: Boolean(notif.is_read),
+                is_claimed: Boolean(notif.is_claimed),
+                created_at: notif.created_at
+            }
+        })
+
+        return reply.send({ notifications: parsed })
+    } catch (error) {
+        console.error('Error listing notification history', error)
+        return reply.code(500).send({ message: 'Error interno obteniendo historial de notificaciones' })
     }
 }
 

@@ -5,7 +5,8 @@ import {
     getUserById,
     updateUser,
     getRanking,
-    getDiscoveredSpecies
+    getDiscoveredSpecies,
+    getMyTimeline
 } from '../controllers/userController.js'
 import { protectUserRoute } from '../middlewares/userAuthMiddleware.js'
 
@@ -21,6 +22,9 @@ export default async function usersRoutes(app: FastifyInstance) {
 
     // GET /users/me/discovered-species - Ver especies descubiertas por el usuario logeado
     app.get('/me/discovered-species', getDiscoveredSpecies)
+
+    // GET /users/me/timeline - Línea de vida del usuario
+    app.get('/me/timeline', getMyTimeline)
 
     // PATCH /users/:id - Actualizar perfil (solo el dueño)
     app.patch('/me', updateUser)

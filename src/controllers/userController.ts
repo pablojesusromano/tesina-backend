@@ -4,6 +4,7 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 import { findUserById, findUserByUsername, updateUser as updateUserModel } from '../models/user.js'
 import { findUserTypeById } from '../models/userType.js'
 import { getDiscoveredSpeciesByUser } from '../models/species.js'
+import { getUserTimeline } from '../models/userActionHistory.js'
 import type { User } from '../models/user.js'
 import { UPLOADS_BASE_URL_PROFILE, ALLOWED_TYPES, MAX_PROFILE_IMAGE_SIZE } from '../config/upload.js'
 import fs from 'fs'
@@ -240,6 +241,20 @@ export async function getDiscoveredSpecies(req: FastifyRequest, reply: FastifyRe
         return reply.send({ data: species })
     } catch (err: any) {
         console.error('Error obteniendo especies descubiertas:', err)
+        return reply.code(500).send({ message: 'Error interno del servidor' })
+    }
+}
+
+/** GET /users/me/timeline - Línea de vida del usuario logueado */
+export async function getMyTimeline(req: FastifyRequest, reply: FastifyReply) {
+    const auth = (req as any).user
+    const userId = auth.id
+
+    try {
+        const timeline = await getUserTimeline(userId)
+        return reply.send({ data: timeline })
+    } catch (err: any) {
+        console.error('Error obteniendo timeline:', err)
         return reply.code(500).send({ message: 'Error interno del servidor' })
     }
 }
