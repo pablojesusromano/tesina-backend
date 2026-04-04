@@ -1,10 +1,6 @@
 import { getTrophiesByTriggerAction, hasUserUnlockedTrophy, unlockUserTrophy } from '../models/trophy.js'
 import { pool } from '../db/db.js'
 import type { RowDataPacket } from 'mysql2'
-import { findActionRewardByKey } from '../models/actionReward.js'
-import { createActionHistory } from '../models/userActionHistory.js'
-import { findNotificationTypeByKey } from '../models/notificationType.js'
-import { createNotification } from '../models/notification.js'
 
 export async function evaluateTrophies(userId: number, actionKey: string): Promise<void> {
     try {
@@ -53,44 +49,14 @@ export async function evaluateTrophies(userId: number, actionKey: string): Promi
             }
 
             if (meetsCondition) {
-                await grantTrophyToUser(userId, trophy)
+                // Solo desbloqueamos el trofeo, nada más
+                const success = await unlockUserTrophy(userId, trophy.id)
+                if (success) {
+                    console.log(`[TrophyService] Usuario ${userId} desbloqueó trofeo "${trophy.key}"`)
+                }
             }
         }
     } catch (err) {
         console.error(`[TrophyService] Error evaluando trofeos para ${actionKey} usuario ${userId}:`, err)
-    }
-}
-
-async function grantTrophyToUser(userId: number, trophy: any): Promise<void> {
-    const success = await unlockUserTrophy(userId, trophy.id)
-    if (!success) return
-
-    console.log(`[TrophyService] Usuario ${userId} ha desbloqueado trofeo ${trophy.key}`)
-
-    const genericTrophyReward = await findActionRewardByKey('trofeo_desbloqueado')
-    if (!genericTrophyReward) {
-        console.error(`[TrophyService] NO EXISTE action_reward para 'trofeo_desbloqueado'.`)
-        return
-    }
-
-    const historyId = await createActionHistory(
-        userId,
-        genericTrophyReward.id,
-        trophy.exp_reward, // Se inyecta la XP dictada por el trofeo particular
-        trophy.id, 
-        undefined,
-        false
-    )
-
-    if (historyId) {
-        const notifType = await findNotificationTypeByKey('TROFEO_DESBLOQUEADO')
-        if (notifType) {
-            await createNotification(userId, notifType.id, {
-                trophyName: trophy.name,
-                expReward: trophy.exp_reward,
-                historyId: historyId,
-                trophyId: trophy.id // Enviamos trophyId para actualizar user_trophies.is_claimed
-            })
-        }
     }
 }
