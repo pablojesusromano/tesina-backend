@@ -107,6 +107,12 @@ export async function claimNotification(req: FastifyRequest, reply: FastifyReply
 
                 await updateUser(user.id, { exp: newExp, level: newLevel })
                 console.log(`[Reclamo] Usuario ${user.id} reclamó notificación ${notifId}. Nueva EXP: ${newExp}, Nivel: ${newLevel}`)
+
+                // Si la recompensa venía amarrada a un trofeo, lo marcamos como reclamado
+                if (dataObj.trophyId) {
+                    const { markUserTrophyAsClaimed } = await import('../models/trophy.js')
+                    await markUserTrophyAsClaimed(user.id, dataObj.trophyId)
+                }
             }
         } else if (dataObj && dataObj.prizeAmount) {
             // Si era un "premio genérico" sin historyId (Ej: admin te regala 50pts)

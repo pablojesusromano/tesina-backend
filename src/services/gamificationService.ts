@@ -3,6 +3,7 @@ import { hasActionHistory, createActionHistory, calculateUserTotalExp } from '..
 import { findUserById, updateUser } from '../models/user.js'
 import { findNotificationTypeByKey } from '../models/notificationType.js'
 import { createNotification } from '../models/notification.js'
+import { evaluateTrophies } from './trophyService.js'
 
 export async function processAction(
     userId: number,
@@ -78,6 +79,11 @@ export async function processAction(
         } catch (err) {
             console.error(`[Gamification Error] Notification creation failed for ${actionKey}`, err)
         }
+
+        // Evaluar posibles trofeos en background sin bloquear la respuesta principal
+        evaluateTrophies(userId, actionKey).catch(err => {
+            console.error(`[Gamification Error] Background trophy evaluation failed for ${actionKey}:`, err)
+        })
 
         return true
     } catch (error) {
