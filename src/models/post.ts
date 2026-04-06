@@ -19,6 +19,10 @@ export interface PostWithUserAndImages extends Post {
     user_username: string
     user_image: string | null
     images: PostImage[]
+    specie_id: number | null
+    specie_name: string | null
+    specie_image_path: string | null
+    specie_description: string | null
 }
 
 // ==================== CREAR POST ====================
@@ -68,7 +72,10 @@ export async function getAllPosts(
             u.username as user_username,
             u.image as user_image,
             count(DISTINCT c.id) as comments_count,
-            s.name as species_name,
+            p.specie_id,
+            s.name as specie_name,
+            s.image_path as specie_image_path,
+            s.description as specie_description,
             ${userId !== null ? `
             CASE 
                 WHEN EXISTS (
@@ -83,7 +90,7 @@ export async function getAllPosts(
         INNER JOIN users u ON p.user_id = u.id
         LEFT JOIN comments c ON p.id = c.post_id
         LEFT JOIN post_likes l ON p.id = l.post_id
-        INNER JOIN species s ON s.id = p.specie_id
+        LEFT JOIN species s ON s.id = p.specie_id
         WHERE p.status_id IN (${ph})
         GROUP BY p.id
         ORDER BY p.created_at DESC
@@ -117,10 +124,15 @@ export async function findPostById(postId: number): Promise<PostWithUserAndImage
             p.updated_at,
             u.name as user_name,
             u.username as user_username,
-            u.image as user_image
+            u.image as user_image,
+            p.specie_id,
+            s.name as specie_name,
+            s.image_path as specie_image_path,
+            s.description as specie_description
          FROM posts p
          INNER JOIN post_status ps ON p.status_id = ps.id
          INNER JOIN users u ON p.user_id = u.id
+         LEFT JOIN species s ON s.id = p.specie_id
          WHERE p.id = ?`,
         [postId]
     )
@@ -158,10 +170,15 @@ export async function getPostsByUserId(
             p.updated_at,
             u.name as user_name,
             u.username as user_username,
-            u.image as user_image
+            u.image as user_image,
+            p.specie_id,
+            s.name as specie_name,
+            s.image_path as specie_image_path,
+            s.description as specie_description
          FROM posts p
          INNER JOIN post_status ps ON p.status_id = ps.id
          INNER JOIN users u ON p.user_id = u.id
+         LEFT JOIN species s ON s.id = p.specie_id
          WHERE p.user_id = ? AND p.status_id IN (${ph})
          ORDER BY p.created_at DESC
          LIMIT ? OFFSET ?`,
