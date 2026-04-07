@@ -15,7 +15,8 @@ import {
     getMyLikedPosts,
     getCommentsByPostId,
     approvePost,
-    rejectPost
+    rejectPost,
+    togglePostResearch
 } from '../controllers/postController.js'
 import { protectUserOrAdminRoute, protectAdminRoute } from '../middlewares/authMiddleware.js'
 import { validateUpdatePost, validateIdParam, validateUserIdParam, validateStatusUpdate } from '../middlewares/validateMiddleware.js'
@@ -88,4 +89,9 @@ export default async function postRoutes(app: FastifyInstance) {
     app.post('/:id/reject', {
         preHandler: [protectAdminRoute, validateIdParam]
     }, rejectPost)
+
+    // PATCH /posts/:id/research - Marcar/desmarcar como utilizado para investigación (solo admin)
+    app.patch('/:id/research', {
+        preHandler: [protectAdminRoute, validateIdParam]
+    }, togglePostResearch)
 }

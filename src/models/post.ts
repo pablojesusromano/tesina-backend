@@ -9,6 +9,7 @@ export interface Post {
     description: string
     user_id: number
     status_id: number
+    used_for_research: boolean
     created_at: Date
     updated_at: Date
 }
@@ -65,6 +66,7 @@ export async function getAllPosts(
             p.description,
             p.user_id,
             p.status_id,
+            p.used_for_research,
             ps.name as status_name,
             p.created_at,
             p.updated_at,
@@ -119,6 +121,7 @@ export async function findPostById(postId: number): Promise<PostWithUserAndImage
             p.description,
             p.user_id,
             p.status_id,
+            p.used_for_research,
             ps.name as status_name,
             p.created_at,
             p.updated_at,
@@ -165,6 +168,7 @@ export async function getPostsByUserId(
             p.description,
             p.user_id,
             p.status_id,
+            p.used_for_research,
             ps.name as status_name,
             p.created_at,
             p.updated_at,
@@ -345,6 +349,7 @@ export async function getLikedPostsByUserId(
             p.description,
             p.user_id,
             p.status_id,
+            p.used_for_research,
             ps.name as status_name,
             p.created_at,
             p.updated_at,
@@ -436,4 +441,21 @@ export async function getCommentById(commentId: number): Promise<any | null> {
         [commentId]
     )
     return rows[0] || null
+}
+
+// ==================== MARCAR COMO UTILIZADO PARA INVESTIGACIÓN ====================
+export async function updatePostResearchFlag(
+    postId: number,
+    usedForResearch: boolean
+): Promise<boolean> {
+    try {
+        const [result] = await pool.query<ResultSetHeader>(
+            'UPDATE posts SET used_for_research = ? WHERE id = ?',
+            [usedForResearch ? 1 : 0, postId]
+        )
+        return result.affectedRows > 0
+    } catch (error) {
+        console.error('Error actualizando flag de investigación:', error)
+        return false
+    }
 }

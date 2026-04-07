@@ -18,7 +18,8 @@ import {
     addCommentToPost as modelAddCommentToPost,
     deleteCommentById as modelDeleteCommentById,
     getCommentsByPostId as modelGetCommentsByPostId,
-    getCommentById
+    getCommentById,
+    updatePostResearchFlag
 } from '../models/post.js'
 import {
     createPostImage
@@ -452,10 +453,17 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
             return reply.code(500).send({ message: 'Error actualizando publicación' })
         }
 
+        // Si el post estaba ACTIVO, volver a REVISION para re-validación
+        if (post.status_name === POST_STATUS_NAMES.ACTIVO) {
+            await updatePostStatus(postId, POST_STATUS_NAMES.REVISION)
+        }
+
         const updatedPost = await findPostById(postId)
 
         return reply.send({
-            message: 'Publicación actualizada exitosamente',
+            message: post.status_name === POST_STATUS_NAMES.ACTIVO
+                ? 'Publicación actualizada. Fue enviada a revisión nuevamente.'
+                : 'Publicación actualizada exitosamente',
             post: updatedPost
         })
     } catch (error) {
@@ -817,4 +825,44 @@ export async function getCommentsByPostId(req: FastifyRequest, reply: FastifyRep
         return reply.code(500).send({ message: 'Error interno' })
     }
 }
+
+// ==================== MARCAR POST COMO UTILIZADO PARA INVESTIGACIÓN (SOLO ADMIN) ====================
+export async function togglePostResearch(req: FastifyRequest, reply: FastifyReply) {
+    const { id } = req.params as { id: string }
+    const postId = Number(id)
+    const { used_for_research } = req.body as { used_for_research: boolean }
+
+    if (typeof used_for_research !== 'boolean') {
+        return reply.code(400).send({
+            message: 'El campo used_for_research es obligatorio y debe ser booleano'
+        })
+    }
+
+    try {
+        const post = await findPostById(postId)
+
+        if (!post) {
+            return reply.code(404).send({ message: 'Publicación no encontrada' })
+        }
+
+        const success = await updatePostResearchFlag(postId, used_for_research)
+
+        if (!success) {
+            return reply.code(500).send({ message: 'Error actualizando flag de investigación' })
+        }
+
+        const updatedPost = await findPostById(postId)
+
+        return reply.send({
+            message: used_for_research
+                ? 'Publicación marcada como utilizada para investigación científica'
+                : 'Se removió la marca de investigación científica',
+            post: updatedPost
+        })
+    } catch (error) {
+        console.error('Error actualizando flag de investigación:', error)
+        return reply.code(500).send({ message: 'Error interno del servidor' })
+    }
+}
+
 
