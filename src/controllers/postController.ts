@@ -249,10 +249,11 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
 // ==================== OBTENER TODOS LOS POSTS (FEED) ====================
 export async function listPosts(req: FastifyRequest, reply: FastifyReply) {
     const authType = (req as any).authType
-    const { page = 1, pageSize = 20, statuses: statusesQuery } = req.query as {
+    const { page = 1, pageSize = 20, statuses: statusesQuery, excludeSelf } = req.query as {
         page?: number
         pageSize?: number
         statuses?: string | string[]
+        excludeSelf?: string
     }
 
     // Obtener userId según el tipo de autenticación
@@ -268,6 +269,9 @@ export async function listPosts(req: FastifyRequest, reply: FastifyReply) {
     const validPageSize = Math.min(100, Math.max(1, Number(pageSize)))
     const offset = (validPage - 1) * validPageSize
 
+    // Excluir posts propios del feed (solo aplica para usuarios, no admins)
+    const excludeUserId = (excludeSelf === 'true' && authType === 'user') ? userId : null
+
     // Parsear estados desde el query
     let statuses: PostStatusName[]
 
@@ -281,8 +285,8 @@ export async function listPosts(req: FastifyRequest, reply: FastifyReply) {
     }
 
     try {
-        const posts = await getAllPosts(validPageSize, offset, statuses, userId ?? 0)
-        const total = await countAllPosts(statuses)
+        const posts = await getAllPosts(validPageSize, offset, statuses, userId ?? 0, excludeUserId)
+        const total = await countAllPosts(statuses, excludeUserId)
 
         return reply.send({
             page: validPage,

@@ -52,12 +52,14 @@ export async function getAllPosts(
     limit: number = 20,
     offset: number = 0,
     statuses: PostStatusName[] = ['ACTIVO'],
-    userId: number | null
+    userId: number | null,
+    excludeUserId: number | null = null
 ): Promise<PostWithUserAndImages[]> {
     const statusIds = await resolveStatusIds(statuses)
     if (!statusIds.length) return []
 
     const ph = statusIds.map(() => '?').join(', ')
+    const excludeClause = excludeUserId ? ' AND p.user_id != ?' : ''
 
     const [rows] = await pool.query<(RowDataPacket & Post)[]>(
         `SELECT 
@@ -93,13 +95,17 @@ export async function getAllPosts(
         LEFT JOIN comments c ON p.id = c.post_id
         LEFT JOIN post_likes l ON p.id = l.post_id
         LEFT JOIN species s ON s.id = p.specie_id
-        WHERE p.status_id IN (${ph})
+        WHERE p.status_id IN (${ph})${excludeClause}
         GROUP BY p.id
         ORDER BY p.created_at DESC
         LIMIT ? OFFSET ?`,
-        userId !== null 
-            ? [userId, ...statusIds, limit, offset]
-            : [...statusIds, limit, offset]
+        [
+            ...(userId !== null ? [userId] : []),
+            ...statusIds,
+            ...(excludeUserId ? [excludeUserId] : []),
+            limit,
+            offset
+        ]
     )
 
     const postsWithImages = await Promise.all(
@@ -268,14 +274,15 @@ export async function deletePost(postId: number): Promise<boolean> {
 }
 
 // ==================== CONTAR POSTS ====================
-export async function countAllPosts(statuses: PostStatusName[] = ['ACTIVO']): Promise<number> {
+export async function countAllPosts(statuses: PostStatusName[] = ['ACTIVO'], excludeUserId: number | null = null): Promise<number> {
     const statusIds = await resolveStatusIds(statuses)
     if (!statusIds.length) return 0
 
     const ph = statusIds.map(() => '?').join(', ')
+    const excludeClause = excludeUserId ? ' AND user_id != ?' : ''
     const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT COUNT(*) as total FROM posts WHERE status_id IN (${ph})`,
-        statusIds
+        `SELECT COUNT(*) as total FROM posts WHERE status_id IN (${ph})${excludeClause}`,
+        [...statusIds, ...(excludeUserId ? [excludeUserId] : [])]
     )
     return rows[0]?.total ?? 0
 }
