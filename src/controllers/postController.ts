@@ -853,6 +853,11 @@ export async function togglePostResearch(req: FastifyRequest, reply: FastifyRepl
 
         const updatedPost = await findPostById(postId)
 
+        // Gamificación: notificar al autor del post cuando es marcado para investigación
+        if (used_for_research) {
+            processAction(post.user_id, 'post_seleccionado', { referenceId: postId })
+        }
+
         return reply.send({
             message: used_for_research
                 ? 'Publicación marcada como utilizada para investigación científica'
