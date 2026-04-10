@@ -103,3 +103,15 @@ export async function deleteAdmin(id: number): Promise<boolean> {
     )
     return result.affectedRows > 0
 }
+
+export async function logAdminPostAction(
+    adminId: number,
+    postId: number,
+    actionType: string
+): Promise<number | null> {
+    const [result] = await pool.execute<ResultSetHeader>(
+        'INSERT INTO admin_post_actions (admin_id, post_id, action_type) VALUES (?, ?, ?)',
+        [adminId, postId, actionType]
+    )
+    return result.insertId || null
+}

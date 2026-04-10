@@ -25,6 +25,8 @@ import {
     createPostImage
 } from '../models/postImage.js'
 import { POST_STATUS_NAMES, type PostStatusName, getAllStatusNames } from '../models/postStatus.js'
+import { logAdminPostAction } from '../models/admin.js'
+
 import { sendSightingNotification } from '../services/firebaseCloudMessagingService.js'
 import { processAction } from '../services/gamificationService.js'
 
@@ -523,6 +525,11 @@ export async function updatePostStatusById(req: FastifyRequest, reply: FastifyRe
 
         const updatedPost = await findPostById(postId)
 
+        if (authType === 'admin') {
+            const admin = (req as any).admin
+            await logAdminPostAction(admin.id, postId, `status_changed_to_${status}`)
+        }
+
         // ENVIAR NOTIFICACIÓN SI ES ADMIN Y ACTIVA UN AVISTAMIENTO
         if (
             authType === 'admin' &&
@@ -581,6 +588,11 @@ export async function deletePostById(req: FastifyRequest, reply: FastifyReply) {
             return reply.code(500).send({ message: 'Error eliminando publicación' })
         }
 
+        if (authType === 'admin') {
+            const admin = (req as any).admin
+            await logAdminPostAction(admin.id, postId, 'deleted_post')
+        }
+
         return reply.send({ message: 'Publicación eliminada exitosamente' })
     } catch (error) {
         console.error('Error eliminando post:', error)
@@ -616,6 +628,9 @@ export async function approvePost(req: FastifyRequest, reply: FastifyReply) {
         }
 
         const updatedPost = await findPostById(postId)
+
+        const admin = (req as any).admin
+        await logAdminPostAction(admin.id, postId, 'approved_post')
 
         // Enviar notificación push
         sendSightingNotification(req.server, {
@@ -668,6 +683,9 @@ export async function rejectPost(req: FastifyRequest, reply: FastifyReply) {
         }
 
         const updatedPost = await findPostById(postId)
+
+        const admin = (req as any).admin
+        await logAdminPostAction(admin.id, postId, 'rejected_post')
 
         // TODO: Aquí podrías enviar una notificación al usuario informando el rechazo
         // y opcionalmente incluir la razón del rechazo
@@ -859,6 +877,9 @@ export async function togglePostResearch(req: FastifyRequest, reply: FastifyRepl
         }
 
         const updatedPost = await findPostById(postId)
+
+        const admin = (req as any).admin
+        await logAdminPostAction(admin.id, postId, newValue ? 'marked_for_research' : 'unmarked_for_research')
 
         // Gamificación: notificar al autor del post cuando es marcado para investigación
         if (newValue) {
