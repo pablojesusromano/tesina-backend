@@ -14,9 +14,21 @@ async function onlyAdminOwner(req: FastifyRequest, reply: FastifyReply) {
     const admin = (req as any).admin
     const { id } = req.params as { id: string }
     const isOwner = admin?.id === Number(id)
-    
+
     if (!isOwner) {
         return reply.code(403).send({ message: 'Solo puedes modificar tu propio perfil' })
+    }
+}
+
+// Middleware: solo super admins (pato y denis) pueden acceder
+async function onlySuperAdmins(req: FastifyRequest, reply: FastifyReply) {
+    const admin = (req as any).admin
+
+    const isPato = admin?.email === 'pato@mail.com' && admin?.username === 'patoromano'
+    const isDenis = admin?.email === 'denis@mail.com' && admin?.username === 'denisrybier'
+
+    if (!isPato && !isDenis) {
+        return reply.code(403).send({ message: 'No tienes permisos suficientes para realizar esta acción' })
     }
 }
 
@@ -24,17 +36,17 @@ export default async function adminRoutes(app: FastifyInstance) {
     // Todas requieren autenticación de admin
     app.addHook('preHandler', protectAdminRoute)
 
-    // GET /admins - Listar todos los admins (cualquier admin puede ver)
-    app.get('/', listAdmins)
+    // GET /admins - Listar todos los admins (solo super admins)
+    app.get('/', { preHandler: onlySuperAdmins }, listAdmins)
 
     // GET /admins/me - Mi perfil de admin
     app.get('/me', getMyAdminProfile)
 
-    // GET /admins/:id - Ver perfil de otro admin (cualquier admin puede ver)
-    app.get('/:id', getAdminById)
+    // GET /admins/:id - Ver perfil de otro admin (solo super admins)
+    app.get('/:id', { preHandler: onlySuperAdmins }, getAdminById)
 
-    // POST /admins - Crear nuevo admin (cualquier admin puede crear otro)
-    app.post('/', createNewAdmin)
+    // POST /admins - Crear nuevo admin (solo super admins)
+    app.post('/', { preHandler: onlySuperAdmins }, createNewAdmin)
 
     // PATCH /admins/:id - Actualizar perfil (solo el dueño)
     app.patch('/:id', { preHandler: onlyAdminOwner }, updateAdminProfile)
