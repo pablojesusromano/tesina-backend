@@ -64,23 +64,25 @@ async function parseStatusesFromQuery(
     defaultStatuses: PostStatusName[] | 'ALL' = ['ACTIVO']
 ): Promise<PostStatusName[]> {
     const validStatuses = await getValidStatuses()
+    // Nunca devolver posts eliminados al front
+    const nonDeletedStatuses = validStatuses.filter(s => s !== POST_STATUS_NAMES.ELIMINADO)
 
     // Si no hay query, retornar el default
     if (!statusQuery) {
-        return defaultStatuses === 'ALL' ? validStatuses : defaultStatuses
+        return defaultStatuses === 'ALL' ? nonDeletedStatuses : defaultStatuses.filter(s => s !== POST_STATUS_NAMES.ELIMINADO)
     }
 
     // Si viene como string, convertir a array
     const statusArray = Array.isArray(statusQuery) ? statusQuery : [statusQuery]
 
-    // Filtrar solo los estados válidos
+    // Filtrar solo los estados válidos y nunca incluir ELIMINADO
     const filteredStatuses = statusArray.filter(s =>
-        validStatuses.includes(s as PostStatusName)
+        (nonDeletedStatuses as string[]).includes(s)
     ) as PostStatusName[]
 
     // Si después del filtrado no hay estados válidos, retornar el default
     if (filteredStatuses.length === 0) {
-        return defaultStatuses === 'ALL' ? validStatuses : defaultStatuses
+        return defaultStatuses === 'ALL' ? nonDeletedStatuses : defaultStatuses.filter(s => s !== POST_STATUS_NAMES.ELIMINADO)
     }
 
     return filteredStatuses
@@ -311,6 +313,11 @@ export async function getPostById(req: FastifyRequest, reply: FastifyReply) {
         const post = await findPostById(postId)
 
         if (!post) {
+            return reply.code(404).send({ message: 'Publicación no encontrada' })
+        }
+
+        // Nunca devolver posts eliminados al front
+        if (post.status_name === POST_STATUS_NAMES.ELIMINADO) {
             return reply.code(404).send({ message: 'Publicación no encontrada' })
         }
 

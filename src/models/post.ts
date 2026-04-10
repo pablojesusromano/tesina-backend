@@ -368,7 +368,7 @@ export async function getLikedPostsByUserId(
         INNER JOIN posts p ON pl.post_id = p.id
         INNER JOIN post_status ps ON p.status_id = ps.id
         INNER JOIN users u ON p.user_id = u.id
-        WHERE pl.user_id = ?
+        WHERE pl.user_id = ? AND ps.name != 'ELIMINADO'
         ORDER BY pl.created_at DESC
         LIMIT ? OFFSET ?`,
         [userId, limit, offset]
