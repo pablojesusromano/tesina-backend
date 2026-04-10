@@ -841,13 +841,6 @@ export async function getCommentsByPostId(req: FastifyRequest, reply: FastifyRep
 export async function togglePostResearch(req: FastifyRequest, reply: FastifyReply) {
     const { id } = req.params as { id: string }
     const postId = Number(id)
-    const { used_for_research } = req.body as { used_for_research: boolean }
-
-    if (typeof used_for_research !== 'boolean') {
-        return reply.code(400).send({
-            message: 'El campo used_for_research es obligatorio y debe ser booleano'
-        })
-    }
 
     try {
         const post = await findPostById(postId)
@@ -856,7 +849,10 @@ export async function togglePostResearch(req: FastifyRequest, reply: FastifyRepl
             return reply.code(404).send({ message: 'Publicación no encontrada' })
         }
 
-        const success = await updatePostResearchFlag(postId, used_for_research)
+        // Invertir el estado actual (toggle)
+        const newValue = !post.used_for_research
+
+        const success = await updatePostResearchFlag(postId, newValue)
 
         if (!success) {
             return reply.code(500).send({ message: 'Error actualizando flag de investigación' })
@@ -865,12 +861,12 @@ export async function togglePostResearch(req: FastifyRequest, reply: FastifyRepl
         const updatedPost = await findPostById(postId)
 
         // Gamificación: notificar al autor del post cuando es marcado para investigación
-        if (used_for_research) {
+        if (newValue) {
             processAction(post.user_id, 'post_seleccionado', { referenceId: postId })
         }
 
         return reply.send({
-            message: used_for_research
+            message: newValue
                 ? 'Publicación marcada como utilizada para investigación científica'
                 : 'Se removió la marca de investigación científica',
             post: updatedPost
