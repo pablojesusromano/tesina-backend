@@ -27,7 +27,7 @@ import {
 import { POST_STATUS_NAMES, type PostStatusName, getAllStatusNames } from '../models/postStatus.js'
 import { logAdminPostAction } from '../models/admin.js'
 
-import { sendSightingNotification } from '../services/firebaseCloudMessagingService.js'
+import { sendSightingNotification, sendResearchNotification } from '../services/firebaseCloudMessagingService.js'
 import { processAction } from '../services/gamificationService.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -884,6 +884,14 @@ export async function togglePostResearch(req: FastifyRequest, reply: FastifyRepl
         // Gamificación: notificar al autor del post cuando es marcado para investigación
         if (newValue) {
             processAction(post.user_id, 'post_seleccionado', { referenceId: postId })
+
+            // Enviar push notification FCM
+            sendResearchNotification(req.server, {
+                postId: postId,
+                userName: post.user_name || 'Usuario'
+            }).catch(error => {
+                req.server.log.error({ msg: 'Error en notificación de investigación', error })
+            })
         }
 
         return reply.send({

@@ -60,3 +60,60 @@ export async function sendSightingNotification(
         })
     }
 }
+
+export interface ResearchNotificationData {
+    postId: number
+    userName: string
+}
+
+export async function sendResearchNotification(
+    app: FastifyInstance,
+    data: ResearchNotificationData
+): Promise<void> {
+    try {
+        const { postId, userName } = data
+
+        const message = {
+            topic: 'sightings',
+            notification: {
+                title: '🔬 ¡Avistamiento destacado!',
+                body: `El avistamiento de ${userName} fue seleccionado para investigación científica.`,
+            },
+            data: {
+                postId: postId.toString(),
+                type: 'research_selected'
+            },
+            android: {
+                priority: 'high' as const,
+                notification: {
+                    channelId: 'sightings',
+                    sound: 'default',
+                    priority: 'high' as const
+                }
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        sound: 'default',
+                        badge: 1
+                    }
+                }
+            }
+        }
+
+        const response = await app.firebase.messaging().send(message)
+
+        app.log.info({
+            msg: 'Notificación de investigación enviada',
+            postId,
+            messageId: response
+        })
+
+    } catch (error) {
+        app.log.error({
+            msg: 'Error enviando notificación FCM de investigación',
+            error,
+            postId: data.postId
+        })
+    }
+}
