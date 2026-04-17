@@ -12,6 +12,7 @@ export interface User {
     level: number
     created_at: Date
     updated_at: Date | null
+    deleted_at: Date | null
 }
 
 export async function findUserByFirebaseUid(firebaseUid: string): Promise<User | null> {
@@ -99,6 +100,24 @@ export async function updateUser(
 export async function deleteUser(id: number): Promise<boolean> {
     const [result] = await pool.execute<ResultSetHeader>(
         'DELETE FROM users WHERE id = ?',
+        [id]
+    )
+    return result.affectedRows > 0
+}
+
+// ==================== SOFT DELETE (eliminación lógica) ====================
+export async function softDeleteUser(id: number): Promise<boolean> {
+    const [result] = await pool.execute<ResultSetHeader>(
+        'UPDATE users SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL',
+        [id]
+    )
+    return result.affectedRows > 0
+}
+
+// ==================== REACTIVAR CUENTA ====================
+export async function reactivateUser(id: number): Promise<boolean> {
+    const [result] = await pool.execute<ResultSetHeader>(
+        'UPDATE users SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL',
         [id]
     )
     return result.affectedRows > 0

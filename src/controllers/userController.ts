@@ -1,7 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { pool } from '../db/db.js'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2'
-import { findUserById, findUserByUsername, updateUser as updateUserModel } from '../models/user.js'
+import { findUserById, findUserByUsername, updateUser as updateUserModel, softDeleteUser } from '../models/user.js'
 import { findUserTypeById } from '../models/userType.js'
 import { getDiscoveredSpeciesByUser } from '../models/species.js'
 import { getUserTimeline, getUserStreak, getStreakRanking } from '../models/userActionHistory.js'
@@ -356,6 +356,25 @@ export async function getStreakLeaderboard(req: FastifyRequest, reply: FastifyRe
         return reply.send({ data: ranking })
     } catch (err: any) {
         console.error('Error obteniendo streak ranking:', err)
+        return reply.code(500).send({ message: 'Error interno del servidor' })
+    }
+}
+
+/** DELETE /users/me - Eliminar cuenta lógicamente (soft delete) */
+export async function deleteMe(req: FastifyRequest, reply: FastifyReply) {
+    const auth = (req as any).user
+    const userId = auth.id
+
+    try {
+        const success = await softDeleteUser(userId)
+
+        if (!success) {
+            return reply.code(500).send({ message: 'Error eliminando cuenta' })
+        }
+
+        return reply.send({ message: 'Cuenta eliminada exitosamente' })
+    } catch (err: any) {
+        console.error('Error eliminando cuenta:', err)
         return reply.code(500).send({ message: 'Error interno del servidor' })
     }
 }

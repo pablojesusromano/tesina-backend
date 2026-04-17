@@ -23,6 +23,14 @@ export async function protectUserRoute(req: FastifyRequest, reply: FastifyReply)
         if (!user) {
             return reply.code(401).send({ message: 'Usuario no encontrado' })
         }
+
+        // Bloquear usuarios con cuenta eliminada lógicamente
+        if (user.deleted_at) {
+            return reply.code(403).send({
+                message: 'Cuenta eliminada. Iniciá sesión nuevamente para reactivarla.',
+                code: 'ACCOUNT_DELETED'
+            })
+        }
         
         ;(req as any).user = user
         

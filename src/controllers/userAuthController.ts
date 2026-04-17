@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { findUserByFirebaseUid, findUserByUsername, createUser, findUserById } from '../models/user.js'
+import { findUserByFirebaseUid, findUserByUsername, createUser, findUserById, reactivateUser } from '../models/user.js'
 import { findUserTypeByName } from '../models/userType.js'
 import { processAction } from '../services/gamificationService.js'
 
@@ -123,6 +123,12 @@ export async function firebaseLogin(req: FastifyRequest, reply: FastifyReply) {
                 message: 'Usuario no registrado. Usa /user-auth/register',
                 code: 'NOT_REGISTERED'
             })
+        }
+
+        // Si la cuenta estaba eliminada lógicamente, reactivarla
+        if (user.deleted_at) {
+            await reactivateUser(user.id)
+            req.server.log.info({ msg: 'Cuenta reactivada', userId: user.id })
         }
 
         // 3. Generar tokens JWT propios

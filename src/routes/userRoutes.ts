@@ -8,7 +8,8 @@ import {
     getDiscoveredSpecies,
     getMyTimeline,
     getMyStreak,
-    getStreakLeaderboard
+    getStreakLeaderboard,
+    deleteMe
 } from '../controllers/userController.js'
 import { protectUserRoute } from '../middlewares/userAuthMiddleware.js'
 
@@ -33,6 +34,9 @@ export default async function usersRoutes(app: FastifyInstance) {
 
     // PATCH /users/me - Actualizar perfil (solo el dueño)
     app.patch('/me', updateUser)
+
+    // DELETE /users/me - Eliminar cuenta lógicamente (soft delete)
+    app.delete('/me', deleteMe)
 
     // GET /users/ranking - Ver ranking de usuarios
     app.get('/ranking', getRanking)
