@@ -64,28 +64,33 @@ const ADMIN_TRANSITIONS: Record<PostStatusName, PostStatusName[]> = {
 // ==================== HELPER: PARSEAR ESTADOS DEL QUERY ====================
 async function parseStatusesFromQuery(
     statusQuery?: string | string[],
-    defaultStatuses: PostStatusName[] | 'ALL' = ['ACTIVO']
+    defaultStatuses: PostStatusName[] | 'ALL' = ['ACTIVO'],
+    isAdmin: boolean = false
 ): Promise<PostStatusName[]> {
     const validStatuses = await getValidStatuses()
-    // Nunca devolver posts eliminados al front
-    const nonDeletedStatuses = validStatuses.filter(s => s !== POST_STATUS_NAMES.ELIMINADO)
+    // Para admins, permitir todos los estados. Para usuarios, excluir ELIMINADO.
+    const allowedStatuses = isAdmin
+        ? validStatuses
+        : validStatuses.filter(s => s !== POST_STATUS_NAMES.ELIMINADO)
 
     // Si no hay query, retornar el default
     if (!statusQuery) {
-        return defaultStatuses === 'ALL' ? nonDeletedStatuses : defaultStatuses.filter(s => s !== POST_STATUS_NAMES.ELIMINADO)
+        if (defaultStatuses === 'ALL') return allowedStatuses
+        return defaultStatuses.filter(s => (allowedStatuses as string[]).includes(s)) as PostStatusName[]
     }
 
     // Si viene como string, convertir a array
     const statusArray = Array.isArray(statusQuery) ? statusQuery : [statusQuery]
 
-    // Filtrar solo los estados válidos y nunca incluir ELIMINADO
+    // Filtrar solo los estados permitidos
     const filteredStatuses = statusArray.filter(s =>
-        (nonDeletedStatuses as string[]).includes(s)
+        (allowedStatuses as string[]).includes(s)
     ) as PostStatusName[]
 
     // Si después del filtrado no hay estados válidos, retornar el default
     if (filteredStatuses.length === 0) {
-        return defaultStatuses === 'ALL' ? nonDeletedStatuses : defaultStatuses.filter(s => s !== POST_STATUS_NAMES.ELIMINADO)
+        if (defaultStatuses === 'ALL') return allowedStatuses
+        return defaultStatuses.filter(s => (allowedStatuses as string[]).includes(s)) as PostStatusName[]
     }
 
     return filteredStatuses
@@ -281,8 +286,8 @@ export async function listPosts(req: FastifyRequest, reply: FastifyReply) {
     let statuses: PostStatusName[]
 
     if (authType === 'admin') {
-        // Admin puede filtrar por cualquier estado
-        statuses = await parseStatusesFromQuery(statusesQuery)
+        // Admin puede filtrar por cualquier estado, incluyendo ELIMINADO
+        statuses = await parseStatusesFromQuery(statusesQuery, 'ALL', true)
     } else {
         // Usuario solo puede ver ACTIVO en el feed público
         // (sin importar lo que solicite en el query)
