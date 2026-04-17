@@ -19,7 +19,8 @@ import {
     deleteCommentById as modelDeleteCommentById,
     getCommentsByPostId as modelGetCommentsByPostId,
     getCommentById,
-    updatePostResearchFlag
+    updatePostResearchFlag,
+    updatePostSpecieId
 } from '../models/post.js'
 import {
     createPostImage
@@ -605,6 +606,7 @@ export async function deletePostById(req: FastifyRequest, reply: FastifyReply) {
 export async function approvePost(req: FastifyRequest, reply: FastifyReply) {
     const { id } = req.params as { id: string }
     const postId = Number(id)
+    const { specie_id } = (req.body as { specie_id?: number }) || {}
 
     try {
         const post = await findPostById(postId)
@@ -618,6 +620,14 @@ export async function approvePost(req: FastifyRequest, reply: FastifyReply) {
             return reply.code(400).send({
                 message: `Solo se pueden aprobar publicaciones en revisión. Estado actual: ${post.status_name}`
             })
+        }
+
+        // Si el admin corrigió la especie, actualizarla antes de aprobar
+        if (specie_id !== undefined && specie_id !== null && specie_id !== post.specie_id) {
+            const specieUpdated = await updatePostSpecieId(postId, specie_id)
+            if (!specieUpdated) {
+                return reply.code(500).send({ message: 'Error actualizando la especie del post' })
+            }
         }
 
         // Cambiar estado a ACTIVO

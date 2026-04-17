@@ -450,6 +450,23 @@ export async function getCommentById(commentId: number): Promise<any | null> {
     return rows[0] || null
 }
 
+// ==================== ACTUALIZAR ESPECIE DEL POST ====================
+export async function updatePostSpecieId(
+    postId: number,
+    specieId: number
+): Promise<boolean> {
+    try {
+        const [result] = await pool.query<ResultSetHeader>(
+            'UPDATE posts SET specie_id = ? WHERE id = ?',
+            [specieId, postId]
+        )
+        return result.affectedRows > 0
+    } catch (error) {
+        console.error('Error actualizando especie del post:', error)
+        return false
+    }
+}
+
 // ==================== MARCAR COMO UTILIZADO PARA INVESTIGACIÓN ====================
 export async function updatePostResearchFlag(
     postId: number,
