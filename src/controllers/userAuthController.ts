@@ -5,12 +5,13 @@ import { processAction } from '../services/gamificationService.js'
 
 /** REGISTRO con Firebase */
 export async function firebaseRegister(req: FastifyRequest, reply: FastifyReply) {
-    const { idToken, username, name, userTypeName, image } = req.body as {
+    const { idToken, username, name, userTypeName, image, typeApp } = req.body as {
         idToken: string
         username: string
         name: string
         userTypeName?: string
         image?: string
+        typeApp?: number
     }
 
     if (!idToken || !username || !name) {
@@ -53,7 +54,7 @@ export async function firebaseRegister(req: FastifyRequest, reply: FastifyReply)
         }
 
         // 4. Crear usuario en la base de datos
-        const newUserId = await createUser(uid, name, username, userTypeId, image || null)
+        const newUserId = await createUser(uid, name, username, userTypeId, image || null, typeApp ?? 0)
 
         if (!newUserId) {
             return reply.code(500).send({ message: 'Error creando usuario' })
@@ -81,7 +82,8 @@ export async function firebaseRegister(req: FastifyRequest, reply: FastifyReply)
                 name,
                 userTypeId,
                 exp: 0,
-                level: 1
+                level: 1,
+                type_app: typeApp ?? 0
             }
         })
 
@@ -160,7 +162,8 @@ export async function firebaseLogin(req: FastifyRequest, reply: FastifyReply) {
                 image: updatedUser.image,
                 user_type_id: updatedUser.user_type_id,
                 exp: updatedUser.exp,
-                level: updatedUser.level
+                level: updatedUser.level,
+                type_app: updatedUser.type_app
             }
         })
 

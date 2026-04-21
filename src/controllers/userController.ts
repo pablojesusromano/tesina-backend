@@ -25,6 +25,7 @@ function sanitizeUser(u: User) {
         user_type_id: u.user_type_id,
         exp: u.exp,
         level: u.level,
+        type_app: u.type_app,
         created_at: u.created_at,
         updated_at: u.updated_at
     }

@@ -67,7 +67,8 @@ export const firebaseRegisterSchema = z.object({
     username: usernameSchema,
     name: z.string().min(2).max(100),
     userTypeName: z.string().optional(),
-    image: z.string().url().optional()
+    image: z.string().url().optional(),
+    typeApp: z.number().int().min(0).max(1).default(0)
 })
 
 export const firebaseLoginSchema = z.object({

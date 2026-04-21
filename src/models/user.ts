@@ -10,6 +10,7 @@ export interface User {
     user_type_id: number | null  // Opcional en la BD
     exp: number
     level: number
+    type_app: number
     created_at: Date
     updated_at: Date | null
     deleted_at: Date | null
@@ -44,11 +45,12 @@ export async function createUser(
     name: string,
     username: string,
     userTypeId?: number | null,
-    image?: string | null
+    image?: string | null,
+    typeApp: number = 0
 ): Promise<number | null> {
     const [result] = await pool.execute<ResultSetHeader>(
-        'INSERT INTO users (firebase_uid, name, username, user_type_id, image, exp, level) VALUES (?, ?, ?, ?, ?, 0, 1)',
-        [firebaseUid, name, username, userTypeId || null, image || null]
+        'INSERT INTO users (firebase_uid, name, username, user_type_id, image, exp, level, type_app) VALUES (?, ?, ?, ?, ?, 0, 1, ?)',
+        [firebaseUid, name, username, userTypeId || null, image || null, typeApp]
     )
     return result.insertId || null
 }
