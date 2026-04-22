@@ -31,13 +31,18 @@ export async function createNotification(
 
 export async function createBroadcastFanout(
     notificationTypeId: number,
-    dataJson: any
+    dataJson: any,
+    gamifiedOnly: boolean = false
 ): Promise<number> {
     // Inserta 1 copia INDIVIDUAL para cada usuario registrado (Fanout)
     // El frontend lo tratará como una notificación individual
+    const whereClause = gamifiedOnly
+        ? 'WHERE type_app = 0 AND deleted_at IS NULL'
+        : 'WHERE deleted_at IS NULL'
+
     const [result] = await pool.query<ResultSetHeader>(
         `INSERT INTO notifications (user_id, notification_type_id, type, data, is_read, is_claimed)
-         SELECT id, ?, 'GLOBAL', ?, false, false FROM users`,
+         SELECT id, ?, 'GLOBAL', ?, false, false FROM users ${whereClause}`,
         [notificationTypeId, JSON.stringify(dataJson || {})]
     )
     return result.affectedRows

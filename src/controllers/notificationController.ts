@@ -117,6 +117,11 @@ export async function claimNotification(req: FastifyRequest, reply: FastifyReply
     const { id } = req.params as { id: string }
     const notifId = Number(id)
 
+    // Guard: usuarios no-gamificados — respuesta silenciosa sin error
+    if (user.type_app === 1) {
+        return reply.send({ message: 'OK', user: { exp: 0, level: 1 } })
+    }
+
     try {
         const notif = await getNotificationById(notifId)
 
@@ -192,8 +197,8 @@ export async function broadcastNotification(req: FastifyRequest, reply: FastifyR
             return reply.code(404).send({ message: 'Plantilla de notificación no existe' })
         }
 
-        // Hace el FANOUT a todos
-        const affected = await createBroadcastFanout(type.id, data || {})
+        // Hace el FANOUT solo a usuarios gamificados (type_app = 0)
+        const affected = await createBroadcastFanout(type.id, data || {}, true)
 
         return reply.send({
             message: 'Alerta Global enviada mediante Fanout',

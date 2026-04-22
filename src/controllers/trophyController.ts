@@ -31,6 +31,11 @@ export async function claimTrophy(req: FastifyRequest, reply: FastifyReply) {
     const { id } = req.params as { id: string }
     const trophyId = Number(id)
 
+    // Guard: usuarios no-gamificados — respuesta silenciosa sin error
+    if (user.type_app === 1) {
+        return reply.send({ message: 'OK', trophy: null, user: { exp: 0, level: 1 } })
+    }
+
     try {
         // 1. Verificar que el usuario tiene ese trofeo desbloqueado
         const unlocked = await hasUserUnlockedTrophy(user.id, trophyId)

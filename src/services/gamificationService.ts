@@ -14,13 +14,35 @@ export async function processAction(
     }
 ): Promise<boolean> {
     try {
+        const user = await findUserById(userId)
+        if (!user) {
+            console.warn(`[Gamification] User not found: ${userId}`)
+            return false
+        }
+
+        const { referenceId, giverId } = options || {}
+
+        // ==================== APP NO-GAMIFICADA (type_app = 1) ====================
+        // Solo registramos la acción sin recompensas, notificaciones ni trofeos
+        if (user.type_app === 1) {
+            await createActionHistory(
+                userId,
+                null,  // sin action_reward_id
+                null,  // sin exp_earned
+                referenceId,
+                giverId,
+                null   // sin is_claimed
+            )
+            console.log(`[Gamification] User ${userId} (non-gamified) action ${actionKey} logged without rewards.`)
+            return true
+        }
+
+        // ==================== APP GAMIFICADA (type_app = 0) ====================
         const reward = await findActionRewardByKey(actionKey)
         if (!reward) {
             console.warn(`[Gamification] Action key not found: ${actionKey}`)
             return false
         }
-
-        const { referenceId, giverId } = options || {}
 
         // Validaciones preventivas para exploits
         if (actionKey === 'registro_diario') {
@@ -91,3 +113,4 @@ export async function processAction(
         return false
     }
 }
+

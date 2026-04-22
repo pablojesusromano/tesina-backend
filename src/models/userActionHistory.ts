@@ -4,11 +4,11 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 export interface UserActionHistory {
     id: number
     user_id: number
-    action_reward_id: number
+    action_reward_id: number | null
     reference_id: number | null
     giver_id: number | null
-    exp_earned: number
-    is_claimed: boolean
+    exp_earned: number | null
+    is_claimed: boolean | null
     created_at: Date
 }
 
@@ -44,18 +44,18 @@ export async function hasActionHistory(
 
 export async function createActionHistory(
     userId: number,
-    actionRewardId: number,
-    expEarned: number,
+    actionRewardId: number | null,
+    expEarned: number | null,
     referenceId?: number,
     giverId?: number,
-    isClaimed: boolean = false
+    isClaimed: boolean | null = false
 ): Promise<number | null> {
     try {
         const [result] = await pool.query<ResultSetHeader>(
             `INSERT INTO user_action_history 
             (user_id, action_reward_id, exp_earned, reference_id, giver_id, is_claimed) 
             VALUES (?, ?, ?, ?, ?, ?)`,
-            [userId, actionRewardId, expEarned, referenceId ?? null, giverId ?? null, isClaimed]
+            [userId, actionRewardId ?? null, expEarned ?? null, referenceId ?? null, giverId ?? null, isClaimed ?? null]
         )
         return result.insertId
     } catch (e: any) {
@@ -91,7 +91,7 @@ export async function getUserTimeline(userId: number): Promise<any[]> {
             ar.action_key,
             ar.description as action_description
          FROM user_action_history uah
-         INNER JOIN action_rewards ar ON ar.id = uah.action_reward_id
+         LEFT JOIN action_rewards ar ON ar.id = uah.action_reward_id
          WHERE uah.user_id = ?
          ORDER BY uah.created_at DESC`,
         [userId]
