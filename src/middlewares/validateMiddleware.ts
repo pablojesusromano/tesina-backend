@@ -133,6 +133,9 @@ export const createSpeciesSchema = z.object({
     description: z.string()
         .min(10, { message: 'La descripción debe tener al menos 10 caracteres' })
         .max(2000, { message: 'La descripción no puede superar los 2000 caracteres' }),
+    image_path: z.string()
+        .max(500, { message: 'La ruta de imagen no puede superar los 500 caracteres' })
+        .optional(),
     how_to_recognise: z.string()
         .min(10, { message: 'La información de reconocimiento debe tener al menos 10 caracteres' })
         .max(2000, { message: 'La información de reconocimiento no puede superar los 2000 caracteres' }),
@@ -153,6 +156,10 @@ export const createSpeciesSchema = z.object({
     high_season_specimens: z.number()
         .int({ message: 'La cantidad de ejemplares debe ser un número entero' })
         .positive({ message: 'La cantidad de ejemplares debe ser positiva' })
+        .optional(),
+    category: z.string()
+        .min(2, { message: 'La categoría debe tener al menos 2 caracteres' })
+        .max(50, { message: 'La categoría no puede superar los 50 caracteres' })
         .optional()
 }).refine(
     data => {
@@ -177,6 +184,10 @@ export const updateSpeciesSchema = z.object({
         .min(10, { message: 'La descripción debe tener al menos 10 caracteres' })
         .max(2000, { message: 'La descripción no puede superar los 2000 caracteres' })
         .optional(),
+    image_path: z.string()
+        .max(500, { message: 'La ruta de imagen no puede superar los 500 caracteres' })
+        .optional()
+        .nullable(),
     how_to_recognise: z.string()
         .min(10, { message: 'La información de reconocimiento debe tener al menos 10 caracteres' })
         .max(2000, { message: 'La información de reconocimiento no puede superar los 2000 caracteres' })
@@ -201,6 +212,11 @@ export const updateSpeciesSchema = z.object({
     high_season_specimens: z.number()
         .int({ message: 'La cantidad de ejemplares debe ser un número entero' })
         .positive({ message: 'La cantidad de ejemplares debe ser positiva' })
+        .optional()
+        .nullable(),
+    category: z.string()
+        .min(2, { message: 'La categoría debe tener al menos 2 caracteres' })
+        .max(50, { message: 'La categoría no puede superar los 50 caracteres' })
         .optional()
         .nullable()
 }).refine(data => Object.keys(data).length > 0, {

@@ -5,11 +5,13 @@ export interface Species {
     id: number
     name: string
     description: string
+    image_path: string | null
     how_to_recognise: string
     curious_info: string | null
     sighting_start_month: number | null
     sighting_end_month: number | null
     high_season_specimens: number | null
+    category: string | null
     created_at: Date
     updated_at: Date
 }
@@ -18,31 +20,37 @@ export interface Species {
 export async function createSpecies(data: {
     name: string
     description: string
+    image_path?: string
     how_to_recognise: string
     curious_info?: string
     sighting_start_month?: number
     sighting_end_month?: number
     high_season_specimens?: number
+    category?: string
 }): Promise<number | null> {
     try {
         const [result] = await pool.query<ResultSetHeader>(
             `INSERT INTO species (
                 name, 
-                description, 
+                description,
+                image_path,
                 how_to_recognise, 
                 curious_info,
                 sighting_start_month,
                 sighting_end_month,
-                high_season_specimens
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                high_season_specimens,
+                category
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 data.name,
                 data.description,
+                data.image_path || null,
                 data.how_to_recognise,
                 data.curious_info || null,
                 data.sighting_start_month || null,
                 data.sighting_end_month || null,
-                data.high_season_specimens || null
+                data.high_season_specimens || null,
+                data.category || null
             ]
         )
         return result.insertId
@@ -128,6 +136,10 @@ export async function updateSpecies(
             updates.push('description = ?')
             values.push(data.description)
         }
+        if (data.image_path !== undefined) {
+            updates.push('image_path = ?')
+            values.push(data.image_path || null)
+        }
         if (data.how_to_recognise !== undefined) {
             updates.push('how_to_recognise = ?')
             values.push(data.how_to_recognise)
@@ -147,6 +159,10 @@ export async function updateSpecies(
         if (data.high_season_specimens !== undefined) {
             updates.push('high_season_specimens = ?')
             values.push(data.high_season_specimens || null)
+        }
+        if (data.category !== undefined) {
+            updates.push('category = ?')
+            values.push(data.category || null)
         }
 
         if (updates.length === 0) return false

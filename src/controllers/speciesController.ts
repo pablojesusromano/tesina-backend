@@ -18,11 +18,13 @@ export async function createNewSpecies(req: FastifyRequest, reply: FastifyReply)
     const body = req.body as {
         name: string
         description: string
+        image_path?: string
         how_to_recognise: string
         curious_info?: string
         sighting_start_month?: number
         sighting_end_month?: number
         high_season_specimens?: number
+        category?: string
     }
 
     try {
@@ -139,11 +141,13 @@ export async function updateSpeciesById(req: FastifyRequest, reply: FastifyReply
     const body = req.body as {
         name?: string
         description?: string
+        image_path?: string
         how_to_recognise?: string
         curious_info?: string
         sighting_start_month?: number
         sighting_end_month?: number
         high_season_specimens?: number
+        category?: string
     }
 
     try {

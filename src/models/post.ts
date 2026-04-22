@@ -24,6 +24,7 @@ export interface PostWithUserAndImages extends Post {
     specie_name: string | null
     specie_image_path: string | null
     specie_description: string | null
+    specie_category: string | null
 }
 
 // ==================== CREAR POST ====================
@@ -80,6 +81,7 @@ export async function getAllPosts(
             s.name as specie_name,
             s.image_path as specie_image_path,
             s.description as specie_description,
+            s.category as specie_category,
             ${userId !== null ? `
             CASE 
                 WHEN EXISTS (
@@ -137,7 +139,8 @@ export async function findPostById(postId: number): Promise<PostWithUserAndImage
             p.specie_id,
             s.name as specie_name,
             s.image_path as specie_image_path,
-            s.description as specie_description
+            s.description as specie_description,
+            s.category as specie_category
          FROM posts p
          INNER JOIN post_status ps ON p.status_id = ps.id
          INNER JOIN users u ON p.user_id = u.id
@@ -184,7 +187,8 @@ export async function getPostsByUserId(
             p.specie_id,
             s.name as specie_name,
             s.image_path as specie_image_path,
-            s.description as specie_description
+            s.description as specie_description,
+            s.category as specie_category
          FROM posts p
          INNER JOIN post_status ps ON p.status_id = ps.id
          INNER JOIN users u ON p.user_id = u.id
