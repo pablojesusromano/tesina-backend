@@ -1,25 +1,25 @@
-import type { FastifyRequest, FastifyReply } from 'fastify'
-import admin from 'firebase-admin'
+import * as admin from 'firebase-admin';
+import { FastifyRequest, FastifyReply } from 'fastify';
 
 /** GET /admins/screen-time - Listar todos los registros de tiempo en pantalla desde Firestore */
 export async function listScreenTime(req: FastifyRequest, reply: FastifyReply) {
     try {
-        const db = admin.firestore()
+        const db = admin.firestore();
 
-        // Obtener los documentos padre de screen_time (los userIds)
-        const screenTimeRef = db.collection('screen_time')
-        const usersSnapshot = await screenTimeRef.listDocuments()
+        // **USAR CONSULTA DE GRUPO DE COLECCIONES**
+        // Esto buscará todas las subcolecciones llamadas 'sessions' en tu base de datos
+        const sessionsCollectionGroup = db.collectionGroup('sessions');
+        const sessionsSnapshot = await sessionsCollectionGroup.get();
 
-        const allSessions: any[] = []
+        const allSessions: any[] = [];
 
-        for (const userDocRef of usersSnapshot) {
-            const userId = userDocRef.id
-            const sessionsSnapshot = await userDocRef
-                .collection('sessions')
-                .get()
+        sessionsSnapshot.forEach(sessionDoc => {
+            const data = sessionDoc.data();
+            // El ID del usuario (userId) será el ID del padre del documento 'sessions'
+            // Puedes obtenerlo de la ruta del documento
+            const userId = sessionDoc.ref.parent.parent?.id;
 
-            for (const sessionDoc of sessionsSnapshot.docs) {
-                const data = sessionDoc.data()
+            if (userId) { // Asegúrate de que el userId exista
                 allSessions.push({
                     id: sessionDoc.id,
                     userId,
@@ -27,27 +27,29 @@ export async function listScreenTime(req: FastifyRequest, reply: FastifyReply) {
                     durationSeconds: data.durationSeconds ?? 0,
                     screen: data.screen ?? null,
                     startedAt: data.startedAt ?? null
-                })
+                });
             }
-        }
+        });
 
         // Ordenar por startedAt desc (en memoria)
         allSessions.sort((a, b) => {
-            if (!a.startedAt) return 1
-            if (!b.startedAt) return -1
-            return String(b.startedAt).localeCompare(String(a.startedAt))
-        })
+            // Asegúrate de que startedAt sea comparable (por ejemplo, números o ISO strings)
+            // Si son Timestamps de Firestore, conviértelos a milisegundos o Date objects.
+            const startedAtA = a.startedAt instanceof admin.firestore.Timestamp ? a.startedAt.toMillis() : (a.startedAt ? new Date(a.startedAt).getTime() : 0);
+            const startedAtB = b.startedAt instanceof admin.firestore.Timestamp ? b.startedAt.toMillis() : (b.startedAt ? new Date(b.startedAt).getTime() : 0);
+
+            return startedAtB - startedAtA;
+        });
 
         return reply.send({
             total: allSessions.length,
             data: allSessions
-        })
+        });
     } catch (err: any) {
-        req.log.error(err, 'Error consultando screen_time en Firestore')
+        req.log.error(err, 'Error consultando screen_time en Firestore');
         return reply.code(500).send({
             message: 'Error consultando datos de Firestore',
             error: err?.message || String(err)
-        })
+        });
     }
 }
-
