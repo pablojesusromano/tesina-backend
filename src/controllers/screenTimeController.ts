@@ -6,27 +6,36 @@ export async function listScreenTime(req: FastifyRequest, reply: FastifyReply) {
     try {
         const db = admin.firestore()
 
-        // collectionGroup busca en TODAS las subcolecciones llamadas 'sessions'
-        // sin necesidad de que el documento padre exista explícitamente
-        const sessionsSnapshot = await db
-            .collectionGroup('sessions')
-            .orderBy('startedAt', 'desc')
-            .get()
+        // Obtener los documentos padre de screen_time (los userIds)
+        const screenTimeRef = db.collection('screen_time')
+        const usersSnapshot = await screenTimeRef.listDocuments()
 
-        const allSessions = sessionsSnapshot.docs.map(doc => {
-            const data = doc.data()
-            // Extraer el userId del path: screen_time/{userId}/sessions/{sessionId}
-            const pathSegments = doc.ref.path.split('/')
-            const userId = pathSegments[1] // screen_time / {userId} / sessions / {sessionId}
+        const allSessions: any[] = []
 
-            return {
-                id: doc.id,
-                userId,
-                date: data.date ?? null,
-                durationSeconds: data.durationSeconds ?? 0,
-                screen: data.screen ?? null,
-                startedAt: data.startedAt ?? null
+        for (const userDocRef of usersSnapshot) {
+            const userId = userDocRef.id
+            const sessionsSnapshot = await userDocRef
+                .collection('sessions')
+                .get()
+
+            for (const sessionDoc of sessionsSnapshot.docs) {
+                const data = sessionDoc.data()
+                allSessions.push({
+                    id: sessionDoc.id,
+                    userId,
+                    date: data.date ?? null,
+                    durationSeconds: data.durationSeconds ?? 0,
+                    screen: data.screen ?? null,
+                    startedAt: data.startedAt ?? null
+                })
             }
+        }
+
+        // Ordenar por startedAt desc (en memoria)
+        allSessions.sort((a, b) => {
+            if (!a.startedAt) return 1
+            if (!b.startedAt) return -1
+            return String(b.startedAt).localeCompare(String(a.startedAt))
         })
 
         return reply.send({
@@ -35,6 +44,10 @@ export async function listScreenTime(req: FastifyRequest, reply: FastifyReply) {
         })
     } catch (err: any) {
         req.log.error(err, 'Error consultando screen_time en Firestore')
-        return reply.code(500).send({ message: 'Error consultando datos de Firestore' })
+        return reply.code(500).send({
+            message: 'Error consultando datos de Firestore',
+            error: err?.message || String(err)
+        })
     }
 }
+
