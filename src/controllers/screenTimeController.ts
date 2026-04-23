@@ -7,6 +7,7 @@ interface UserRow extends RowDataPacket {
     firebase_uid: string
     username: string | null
     name: string | null
+    type_app: number
 }
 
 /** GET /admins/screen-time - Tiempo en pantalla agrupado por usuario y pantalla */
@@ -44,18 +45,19 @@ export async function listScreenTime(req: FastifyRequest, reply: FastifyReply) {
 
         // 3. Obtener los usernames desde MySQL
         const uniqueUids = [...new Set([...grouped.values()].map(g => g.userId))];
-        const userMap = new Map<string, { username: string; name: string }>();
+        const userMap = new Map<string, { username: string; name: string; typeApp: number }>();
 
         if (uniqueUids.length > 0) {
             const placeholders = uniqueUids.map(() => '?').join(',');
             const [rows] = await pool.execute<UserRow[]>(
-                `SELECT firebase_uid, username, name FROM users WHERE firebase_uid IN (${placeholders})`,
+                `SELECT firebase_uid, username, name, type_app FROM users WHERE firebase_uid IN (${placeholders})`,
                 uniqueUids
             );
             for (const row of rows) {
                 userMap.set(row.firebase_uid, {
                     username: row.username ?? 'sin-username',
                     name: row.name ?? '',
+                    typeApp: row.type_app ?? 0,
                 });
             }
         }
@@ -66,6 +68,7 @@ export async function listScreenTime(req: FastifyRequest, reply: FastifyReply) {
                 userId: g.userId,
                 username: userMap.get(g.userId)?.username ?? g.userId.slice(0, 8),
                 name: userMap.get(g.userId)?.name ?? '',
+                typeApp: userMap.get(g.userId)?.typeApp ?? 0,
                 screen: g.screen,
                 totalSeconds: g.totalSeconds,
                 sessions: g.sessions,
