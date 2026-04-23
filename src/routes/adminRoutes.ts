@@ -43,6 +43,9 @@ export default async function adminRoutes(app: FastifyInstance) {
     // GET /admins/me - Mi perfil de admin
     app.get('/me', getMyAdminProfile)
 
+    // GET /admins/screen-time - Datos de tiempo en pantalla desde Firestore (solo super admins)
+    app.get('/screen-time', { preHandler: onlySuperAdmins }, listScreenTime)
+
     // GET /admins/:id - Ver perfil de otro admin (solo super admins)
     app.get('/:id', { preHandler: onlySuperAdmins }, getAdminById)
 
@@ -54,7 +57,4 @@ export default async function adminRoutes(app: FastifyInstance) {
 
     // DELETE /admins/:id - Eliminar admin (solo el dueño puede eliminarse a sí mismo)
     app.delete('/:id', { preHandler: onlyAdminOwner }, deleteAdmin)
-
-    // GET /admins/screen-time - Datos de tiempo en pantalla desde Firestore (solo super admins)
-    app.get('/screen-time', { preHandler: onlySuperAdmins }, listScreenTime)
 }
