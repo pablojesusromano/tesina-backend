@@ -8,6 +8,7 @@ import {
     updateAdminProfile,
     deleteAdmin
 } from '../controllers/adminController.js'
+import { listScreenTime } from '../controllers/screenTimeController.js'
 
 // Middleware: solo el dueño del perfil puede acceder
 async function onlyAdminOwner(req: FastifyRequest, reply: FastifyReply) {
@@ -53,4 +54,7 @@ export default async function adminRoutes(app: FastifyInstance) {
 
     // DELETE /admins/:id - Eliminar admin (solo el dueño puede eliminarse a sí mismo)
     app.delete('/:id', { preHandler: onlyAdminOwner }, deleteAdmin)
+
+    // GET /admins/screen-time - Datos de tiempo en pantalla desde Firestore (solo super admins)
+    app.get('/screen-time', { preHandler: onlySuperAdmins }, listScreenTime)
 }
