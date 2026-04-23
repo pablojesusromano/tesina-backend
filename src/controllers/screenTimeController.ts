@@ -5,33 +5,29 @@ import admin from 'firebase-admin'
 export async function listScreenTime(req: FastifyRequest, reply: FastifyReply) {
     try {
         const db = admin.firestore()
-        const screenTimeRef = db.collection('screen_time')
 
-        // Obtener todos los documentos de usuarios dentro de screen_time
-        const usersSnapshot = await screenTimeRef.get()
+        // collectionGroup busca en TODAS las subcolecciones llamadas 'sessions'
+        // sin necesidad de que el documento padre exista explícitamente
+        const sessionsSnapshot = await db
+            .collectionGroup('sessions')
+            .orderBy('startedAt', 'desc')
+            .get()
 
-        const allSessions: any[] = []
+        const allSessions = sessionsSnapshot.docs.map(doc => {
+            const data = doc.data()
+            // Extraer el userId del path: screen_time/{userId}/sessions/{sessionId}
+            const pathSegments = doc.ref.path.split('/')
+            const userId = pathSegments[1] // screen_time / {userId} / sessions / {sessionId}
 
-        for (const userDoc of usersSnapshot.docs) {
-            const userId = userDoc.id
-            const sessionsSnapshot = await screenTimeRef
-                .doc(userId)
-                .collection('sessions')
-                .orderBy('startedAt', 'desc')
-                .get()
-
-            for (const sessionDoc of sessionsSnapshot.docs) {
-                const data = sessionDoc.data()
-                allSessions.push({
-                    id: sessionDoc.id,
-                    userId,
-                    date: data.date ?? null,
-                    durationSeconds: data.durationSeconds ?? 0,
-                    screen: data.screen ?? null,
-                    startedAt: data.startedAt ?? null
-                })
+            return {
+                id: doc.id,
+                userId,
+                date: data.date ?? null,
+                durationSeconds: data.durationSeconds ?? 0,
+                screen: data.screen ?? null,
+                startedAt: data.startedAt ?? null
             }
-        }
+        })
 
         return reply.send({
             total: allSessions.length,
