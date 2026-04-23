@@ -1,5 +1,5 @@
-import * as admin from 'firebase-admin';
-import { FastifyRequest, FastifyReply } from 'fastify';
+import admin from 'firebase-admin'
+import type { FastifyRequest, FastifyReply } from 'fastify'
 
 /** GET /admins/screen-time - Listar todos los registros de tiempo en pantalla desde Firestore */
 export async function listScreenTime(req: FastifyRequest, reply: FastifyReply) {
