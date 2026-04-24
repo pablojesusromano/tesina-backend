@@ -249,20 +249,9 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
             })
         )
 
-        // Guardar etiquetas si las hay
+        // Guardar etiquetas si las hay (las notificaciones se envían al aprobar el post)
         if (taggedUserIds.length > 0) {
             await setPostTags(postId, taggedUserIds)
-
-            // Notificación in-app a los usuarios etiquetados (campanita)
-            const tagNotifType = await findNotificationTypeByKey('tagged_in_post')
-            if (tagNotifType) {
-                for (const taggedUserId of taggedUserIds) {
-                    await createNotification(taggedUserId, tagNotifType.id, {
-                        taggerName: user.name || user.username || 'Usuario',
-                        postId
-                    })
-                }
-            }
         }
 
         const newPost = await findPostById(postId)
@@ -518,18 +507,22 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
             if (tagsChanged) {
                 await setPostTags(postId, tagged_user_ids)
 
-                // Notificar solo a los usuarios NUEVOS (los que no estaban etiquetados antes)
-                const newTaggedIds = tagged_user_ids.filter(id => !currentTagIds.includes(id))
-                if (newTaggedIds.length > 0) {
-                    const user = (req as any).user || (req as any).admin
-                    const tagNotifType = await findNotificationTypeByKey('tagged_in_post')
-                    if (tagNotifType) {
-                        for (const taggedUserId of newTaggedIds) {
-                            await createNotification(taggedUserId, tagNotifType.id, {
-                                taggerName: user.name || user.username || 'Usuario',
-                                postId
-                            })
+                // Solo notificar si el post ya está ACTIVO (visible para todos)
+                // Si está en BORRADOR/REVISION, se notificará al aprobar
+                if (post.status_name === POST_STATUS_NAMES.ACTIVO) {
+                    const newTaggedIds = tagged_user_ids.filter(id => !currentTagIds.includes(id))
+                    if (newTaggedIds.length > 0) {
+                        const user = (req as any).user || (req as any).admin
+                        const tagNotifType = await findNotificationTypeByKey('tagged_in_post')
+                        if (tagNotifType) {
+                            for (const taggedUserId of newTaggedIds) {
+                                await createNotification(taggedUserId, tagNotifType.id, {
+                                    taggerName: user.name || user.username || 'Usuario',
+                                    postId
+                                })
+                            }
                         }
+
                     }
                 }
             }
@@ -723,6 +716,24 @@ export async function approvePost(req: FastifyRequest, reply: FastifyReply) {
         }).catch(error => {
             req.server.log.error({ msg: 'Error en notificación', error })
         })
+
+        // Notificar a los usuarios etiquetados ahora que el post es visible
+        const taggedIds = await getPostTagIds(postId)
+        if (taggedIds.length > 0) {
+            const taggerName = post.user_name || 'Usuario'
+
+            // Notificaciones in-app (campanita)
+            const tagNotifType = await findNotificationTypeByKey('tagged_in_post')
+            if (tagNotifType) {
+                for (const taggedUserId of taggedIds) {
+                    await createNotification(taggedUserId, tagNotifType.id, {
+                        taggerName,
+                        postId
+                    })
+                }
+            }
+
+        }
 
         // Gamificación
         processAction(post.user_id, 'post_aprobado', { referenceId: postId })
