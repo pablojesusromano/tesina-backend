@@ -26,6 +26,9 @@ import {
     createPostImage
 } from '../models/postImage.js'
 import { POST_STATUS_NAMES, type PostStatusName, getAllStatusNames } from '../models/postStatus.js'
+import { setPostTags, getPostTagIds } from '../models/postTag.js'
+import { createNotification } from '../models/notification.js'
+import { findNotificationTypeByKey } from '../models/notificationType.js'
 import { logAdminPostAction } from '../models/admin.js'
 
 import { sendSightingNotification, sendResearchNotification } from '../services/firebaseCloudMessagingService.js'
@@ -114,6 +117,7 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
         let imagesMetadata: Array<{ index: number, latitude?: number, longitude?: number }> = []
         let status: number | undefined
         let specieId: number | undefined
+        let taggedUserIds: number[] = []
         const uploadedFiles: { filename: string; filepath: string }[] = []
 
         const parts = req.parts()
@@ -134,6 +138,12 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
                         imagesMetadata = JSON.parse(part.value as string)
                     } catch (e) {
                         console.error('Error parseando images_metadata:', e)
+                    }
+                } else if (part.fieldname === 'tagged_user_ids') {
+                    try {
+                        taggedUserIds = JSON.parse(part.value as string)
+                    } catch (e) {
+                        console.error('Error parseando tagged_user_ids:', e)
                     }
                 }
             } else {
@@ -238,6 +248,22 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
                 return createPostImage(postId, imagePath, index, latitude, longitude)
             })
         )
+
+        // Guardar etiquetas si las hay
+        if (taggedUserIds.length > 0) {
+            await setPostTags(postId, taggedUserIds)
+
+            // Notificación in-app a los usuarios etiquetados (campanita)
+            const tagNotifType = await findNotificationTypeByKey('tagged_in_post')
+            if (tagNotifType) {
+                for (const taggedUserId of taggedUserIds) {
+                    await createNotification(taggedUserId, tagNotifType.id, {
+                        taggerName: user.name || user.username || 'Usuario',
+                        postId
+                    })
+                }
+            }
+        }
 
         const newPost = await findPostById(postId)
 
@@ -439,9 +465,10 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
     const { id } = req.params as { id: string }
     const postId = Number(id)
 
-    const { title, description } = req.body as {
+    const { title, description, tagged_user_ids } = req.body as {
         title?: string
         description?: string
+        tagged_user_ids?: number[]
     }
 
     try {
@@ -466,23 +493,63 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
             }
         }
 
-        const success = await updatePost(postId, title, description)
+        // Determinar si cambió contenido (título o descripción)
+        const contentChanged = (
+            (title !== undefined && title !== post.title) ||
+            (description !== undefined && description !== post.description)
+        )
 
-        if (!success) {
-            return reply.code(500).send({ message: 'Error actualizando publicación' })
+        // Actualizar título/descripción si se enviaron
+        if (title !== undefined || description !== undefined) {
+            const success = await updatePost(postId, title, description)
+            if (!success && contentChanged) {
+                return reply.code(500).send({ message: 'Error actualizando publicación' })
+            }
         }
 
-        // Si el post estaba ACTIVO, volver a REVISION para re-validación
-        if (post.status_name === POST_STATUS_NAMES.ACTIVO) {
+        // Sincronizar etiquetas si se enviaron
+        let tagsChanged = false
+        if (tagged_user_ids !== undefined) {
+            const currentTagIds = await getPostTagIds(postId)
+            const sortedCurrent = [...currentTagIds].sort((a, b) => a - b)
+            const sortedNew = [...tagged_user_ids].sort((a, b) => a - b)
+            tagsChanged = JSON.stringify(sortedCurrent) !== JSON.stringify(sortedNew)
+
+            if (tagsChanged) {
+                await setPostTags(postId, tagged_user_ids)
+
+                // Notificar solo a los usuarios NUEVOS (los que no estaban etiquetados antes)
+                const newTaggedIds = tagged_user_ids.filter(id => !currentTagIds.includes(id))
+                if (newTaggedIds.length > 0) {
+                    const user = (req as any).user || (req as any).admin
+                    const tagNotifType = await findNotificationTypeByKey('tagged_in_post')
+                    if (tagNotifType) {
+                        for (const taggedUserId of newTaggedIds) {
+                            await createNotification(taggedUserId, tagNotifType.id, {
+                                taggerName: user.name || user.username || 'Usuario',
+                                postId
+                            })
+                        }
+                    }
+                }
+            }
+        }
+
+        // Solo enviar a REVISION si cambió contenido (título/descripción)
+        // Las etiquetas NO provocan re-revisión
+        if (contentChanged && post.status_name === POST_STATUS_NAMES.ACTIVO) {
             await updatePostStatus(postId, POST_STATUS_NAMES.REVISION)
         }
 
         const updatedPost = await findPostById(postId)
 
+        let message = 'Publicación actualizada exitosamente'
+        if (contentChanged && post.status_name === POST_STATUS_NAMES.ACTIVO) {
+            message = 'Publicación actualizada. Fue enviada a revisión nuevamente.'
+        }
+
         return reply.send({
-            message: post.status_name === POST_STATUS_NAMES.ACTIVO
-                ? 'Publicación actualizada. Fue enviada a revisión nuevamente.'
-                : 'Publicación actualizada exitosamente',
+            message,
             post: updatedPost
         })
     } catch (error) {

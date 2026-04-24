@@ -2,6 +2,7 @@ import { pool } from '../db/db.js'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 import { getPostImages, type PostImage } from './postImage.js'
 import { findStatusByName, resolveStatusIds, type PostStatusName } from './postStatus.js'
+import { getPostTags, type TaggedUser } from './postTag.js'
 
 export interface Post {
     id: number
@@ -20,6 +21,7 @@ export interface PostWithUserAndImages extends Post {
     user_username: string
     user_image: string | null
     images: PostImage[]
+    tagged_users: TaggedUser[]
     specie_id: number | null
     specie_name: string | null
     specie_image_path: string | null
@@ -110,14 +112,17 @@ export async function getAllPosts(
         ]
     )
 
-    const postsWithImages = await Promise.all(
+    const postsWithDetails = await Promise.all(
         rows.map(async (post: any) => {
-            const images = await getPostImages(post.id)
-            return { ...post, images } as PostWithUserAndImages
+            const [images, tagged_users] = await Promise.all([
+                getPostImages(post.id),
+                getPostTags(post.id)
+            ])
+            return { ...post, images, tagged_users } as PostWithUserAndImages
         })
     )
 
-    return postsWithImages
+    return postsWithDetails
 }
 
 // ==================== OBTENER POST POR ID ====================
@@ -152,8 +157,12 @@ export async function findPostById(postId: number): Promise<PostWithUserAndImage
     if (rows.length === 0) return null
 
     const post = rows[0] as any
-    const images = await getPostImages(postId)
+    const [images, tagged_users] = await Promise.all([
+        getPostImages(postId),
+        getPostTags(postId)
+    ])
     post.images = images
+    post.tagged_users = tagged_users
 
     return post as PostWithUserAndImages
 }
@@ -199,14 +208,17 @@ export async function getPostsByUserId(
         [userId, ...statusIds, limit, offset]
     )
 
-    const postsWithImages = await Promise.all(
+    const postsWithDetails = await Promise.all(
         rows.map(async (post: any) => {
-            const images = await getPostImages(post.id)
-            return { ...post, images } as PostWithUserAndImages
+            const [images, tagged_users] = await Promise.all([
+                getPostImages(post.id),
+                getPostTags(post.id)
+            ])
+            return { ...post, images, tagged_users } as PostWithUserAndImages
         })
     )
 
-    return postsWithImages
+    return postsWithDetails
 }
 
 // ==================== ACTUALIZAR POST ====================
@@ -378,14 +390,17 @@ export async function getLikedPostsByUserId(
         [userId, limit, offset]
     )
 
-    const postsWithImages = await Promise.all(
+    const postsWithDetails = await Promise.all(
         rows.map(async (post: any) => {
-            const images = await getPostImages(post.id)
-            return { ...post, images }
+            const [images, tagged_users] = await Promise.all([
+                getPostImages(post.id),
+                getPostTags(post.id)
+            ])
+            return { ...post, images, tagged_users }
         })
     )
 
-    return postsWithImages as (PostWithUserAndImages & { like_id: number })[]
+    return postsWithDetails as (PostWithUserAndImages & { like_id: number })[]
 }
 
 // ==================== COMENTARIOS ====================

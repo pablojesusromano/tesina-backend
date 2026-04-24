@@ -31,24 +31,49 @@ function sanitizeUser(u: User) {
     }
 }
 
-/** GET /users - Listar usuarios (público para rankings) */
+/** GET /users - Listar usuarios (público para rankings, búsqueda para etiquetas) */
 export async function listUsers(req: FastifyRequest, reply: FastifyReply) {
     const page = Math.max(1, Number((req.query as any)?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Number((req.query as any)?.pageSize ?? 20)))
     const offset = (page - 1) * pageSize
 
     const orderBy = (req.query as any)?.orderBy === 'exp' ? 'exp DESC' : 'id ASC'
+    const search = (req.query as any)?.search as string | undefined
+
+    // Obtener el usuario autenticado para excluirlo de los resultados
+    const currentUserId = (req as any).user?.id ?? null
+
+    // Construir condiciones WHERE dinámicamente
+    const conditions: string[] = ['deleted_at IS NULL']
+    const params: any[] = []
+
+    // Excluir al usuario actual (no puede etiquetarse a sí mismo)
+    if (currentUserId) {
+        conditions.push('id != ?')
+        params.push(currentUserId)
+    }
+
+    // Búsqueda por username o name
+    if (search && search.trim().length > 0) {
+        const term = `%${search.trim()}%`
+        conditions.push('(username LIKE ? OR name LIKE ?)')
+        params.push(term, term)
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
     const [rows] = await pool.query<(RowDataPacket & User)[]>(
         `SELECT id, firebase_uid, username, name, image, user_type_id, exp, level, created_at, updated_at
          FROM users
+         ${whereClause}
          ORDER BY ${orderBy}
          LIMIT ? OFFSET ?`,
-        [pageSize, offset]
+        [...params, pageSize, offset]
     )
 
     const [countRows] = await pool.query<RowDataPacket[]>(
-        'SELECT COUNT(*) as total FROM users'
+        `SELECT COUNT(*) as total FROM users ${whereClause}`,
+        params
     )
     const total = Number((countRows as any)[0].total)
 
