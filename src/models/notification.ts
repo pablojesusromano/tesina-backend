@@ -9,6 +9,7 @@ export interface AppNotification {
     data: any // JSON metadata
     is_read: boolean
     is_claimed: boolean
+    read_at: Date | null
     created_at: Date
     // Estos campos vendrán del JOIN con notification_types:
     n_key?: string
@@ -49,11 +50,19 @@ export async function createBroadcastFanout(
 }
 
 export async function getUserNotifications(userId: number): Promise<AppNotification[]> {
+    // Notificaciones no reclamadas, EXCLUYENDO las no-premio leídas hace más de 24h.
+    // Las notificaciones de premio (gamification_action) permanecen hasta ser reclamadas.
     const [rows] = await pool.query<(AppNotification & RowDataPacket)[]>(
         `SELECT n.*, t.key as n_key, t.title, t.body 
          FROM notifications n
          INNER JOIN notification_types t ON t.id = n.notification_type_id
          WHERE n.user_id = ? AND n.is_claimed = 0
+           AND NOT (
+             n.is_read = 1
+             AND n.read_at IS NOT NULL
+             AND n.read_at < DATE_SUB(NOW(), INTERVAL 1 DAY)
+             AND (n.data NOT LIKE '%"type":"gamification_action"%' OR n.data IS NULL)
+           )
          ORDER BY n.id DESC`,
         [userId]
     )
@@ -72,8 +81,9 @@ export async function getNotificationById(id: number): Promise<AppNotification |
 }
 
 export async function markNotificationAsRead(id: number, userId: number): Promise<boolean> {
+    // Solo setear read_at la primera vez que se marca como leída
     const [result] = await pool.query<ResultSetHeader>(
-        'UPDATE notifications SET is_read = true WHERE id = ? AND user_id = ?',
+        'UPDATE notifications SET is_read = true, read_at = COALESCE(read_at, NOW()) WHERE id = ? AND user_id = ?',
         [id, userId]
     )
     return result.affectedRows > 0

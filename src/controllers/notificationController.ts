@@ -41,7 +41,7 @@ export async function getMyNotifications(req: FastifyRequest, reply: FastifyRepl
                 title: finalTitle,
                 body: finalBody,
                 original_data: dataObj,
-                is_read: Boolean(notif.is_read),
+                is_read: notif.read_at !== null,
                 is_claimed: Boolean(notif.is_claimed),
                 created_at: notif.created_at
             }
@@ -84,7 +84,7 @@ export async function getMyNotificationHistory(req: FastifyRequest, reply: Fasti
                 title: finalTitle,
                 body: finalBody,
                 original_data: dataObj,
-                is_read: Boolean(notif.is_read),
+                is_read: notif.read_at !== null,
                 is_claimed: Boolean(notif.is_claimed),
                 created_at: notif.created_at
             }
@@ -165,7 +165,7 @@ export async function claimNotification(req: FastifyRequest, reply: FastifyReply
         }
 
         // Also marcamos como leida implicitamente
-        if (!notif.is_read) {
+        if (!notif.read_at) {
             await markNotificationAsRead(notifId, user.id)
         }
 
