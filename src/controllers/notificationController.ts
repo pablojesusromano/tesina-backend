@@ -217,13 +217,23 @@ export async function broadcastNotification(req: FastifyRequest, reply: FastifyR
     }
 }
 
-// Para administradores: enviar mensaje libre (título + cuerpo) a TODOS los usuarios
+// Para administradores: enviar mensaje libre (título + cuerpo) con audiencia configurable
 export async function sendCustomBroadcast(req: FastifyRequest, reply: FastifyReply) {
     const admin = (req as any).admin
-    const { title, body } = req.body as { title: string, body: string }
+    const { title, body, target = 'all' } = req.body as {
+        title: string
+        body: string
+        target?: 'all' | 'gamified' | 'non_gamified'
+    }
 
     if (!title?.trim() || !body?.trim()) {
         return reply.code(400).send({ message: 'title y body son obligatorios' })
+    }
+
+    if (!['all', 'gamified', 'non_gamified'].includes(target)) {
+        return reply.code(400).send({
+            message: 'target debe ser "all", "gamified" o "non_gamified"'
+        })
     }
 
     if (title.length > 100) {
@@ -234,11 +244,18 @@ export async function sendCustomBroadcast(req: FastifyRequest, reply: FastifyRep
         return reply.code(400).send({ message: 'El cuerpo no puede superar los 500 caracteres' })
     }
 
+    const targetLabels = {
+        all:          'todos los usuarios',
+        gamified:     'usuarios gamificados',
+        non_gamified: 'usuarios no gamificados'
+    }
+
     try {
-        const affected = await createCustomBroadcast(title.trim(), body.trim(), admin.id)
+        const affected = await createCustomBroadcast(title.trim(), body.trim(), admin.id, target)
         return reply.send({
-            message: `Notificación enviada a ${affected} usuario/s`,
-            users_affected: affected
+            message: `Notificación enviada a ${affected} ${targetLabels[target]}`,
+            users_affected: affected,
+            target
         })
     } catch (e: any) {
         console.error('[sendCustomBroadcast]', e)

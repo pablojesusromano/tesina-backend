@@ -48,15 +48,15 @@ export async function createBroadcastFanout(
     return result.affectedRows
 }
 
-/** Fanout custom: envía una notificación con título y cuerpo libre a todos los usuarios.
- *  No requiere plantilla en notification_types. Usa el tipo con key='admin_mensaje' como base.
+/** Fanout custom: envía una notificación con título y cuerpo libre.
+ *  target: 'all' | 'gamified' | 'non_gamified'
  */
 export async function createCustomBroadcast(
     title: string,
     body: string,
-    adminId: number
+    adminId: number,
+    target: 'all' | 'gamified' | 'non_gamified' = 'all'
 ): Promise<number> {
-    // Buscar o usar el notification_type_id del tipo admin_mensaje
     const [typeRows] = await pool.query<RowDataPacket[]>(
         `SELECT id FROM notification_types WHERE \`key\` = 'admin_mensaje' LIMIT 1`
     )
@@ -66,16 +66,22 @@ export async function createCustomBroadcast(
         throw new Error("No existe el notification_type con key='admin_mensaje'. Crealo primero en la BD.")
     }
 
+    const whereClause =
+        target === 'gamified'     ? 'WHERE type_app = 0 AND deleted_at IS NULL' :
+        target === 'non_gamified' ? 'WHERE type_app = 1 AND deleted_at IS NULL' :
+                                    'WHERE deleted_at IS NULL'
+
     const dataJson = JSON.stringify({
         type: 'admin_mensaje',
         customTitle: title,
         customBody: body,
-        sentBy: adminId
+        sentBy: adminId,
+        target
     })
 
     const [result] = await pool.query<ResultSetHeader>(
         `INSERT INTO notifications (user_id, notification_type_id, type, data, is_claimed)
-         SELECT id, ?, 'GLOBAL', ?, false FROM users WHERE deleted_at IS NULL`,
+         SELECT id, ?, 'GLOBAL', ?, false FROM users ${whereClause}`,
         [notificationTypeId, dataJson]
     )
     return result.affectedRows
