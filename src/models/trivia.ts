@@ -15,18 +15,48 @@ export interface TriviaAnswer {
     is_correct: boolean
 }
 
-/** Obtener la pregunta del día con sus 4 respuestas */
+/** Obtener la pregunta del día con sus 4 respuestas.
+ *  Usa rotación cíclica: si no hay pregunta para hoy por fecha exacta,
+ *  elige la pregunta cuyo índice = (dayOfYear % totalQuestions).
+ */
 export async function getTodayQuestion(): Promise<any | null> {
-    const [questions] = await pool.query<RowDataPacket[]>(
+    // Intentar primero por fecha exacta (para días futuros planificados)
+    const [byDate] = await pool.query<RowDataPacket[]>(
         `SELECT tq.*, s.name as specie_name
          FROM trivia_questions tq
          LEFT JOIN species s ON s.id = tq.specie_id
          WHERE tq.scheduled_date = CURDATE()
          LIMIT 1`
     )
-    if (questions.length === 0) return null
 
-    const question = questions[0]
+    let question = byDate[0] ?? null
+
+    // Si no hay por fecha, rotar cíclicamente por día del año
+    if (!question) {
+        const [countRows] = await pool.query<RowDataPacket[]>(
+            `SELECT COUNT(*) as total FROM trivia_questions`
+        )
+        const total = Number(countRows[0]?.total) || 0
+        if (total === 0) return null
+
+        // dayOfYear va de 1 a 365/366; lo convertimos a índice 0-based
+        const [dayRows] = await pool.query<RowDataPacket[]>(
+            `SELECT DAYOFYEAR(CURDATE()) - 1 as day_index`
+        )
+        const dayIndex = Number(dayRows[0]?.day_index) || 0
+        const offset = dayIndex % total
+
+        const [cyclic] = await pool.query<RowDataPacket[]>(
+            `SELECT tq.*, s.name as specie_name
+             FROM trivia_questions tq
+             LEFT JOIN species s ON s.id = tq.specie_id
+             ORDER BY tq.id ASC
+             LIMIT 1 OFFSET ?`,
+            [offset]
+        )
+        question = cyclic[0] ?? null
+    }
+
     if (!question) return null
 
     const [answers] = await pool.query<RowDataPacket[]>(
