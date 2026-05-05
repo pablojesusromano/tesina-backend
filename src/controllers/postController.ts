@@ -472,7 +472,7 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
         }
 
         if (authType === 'user') {
-            if (post.status_name !== POST_STATUS_NAMES.BORRADOR && post.status_name !== POST_STATUS_NAMES.ACTIVO) {
+            if (post.status_name !== POST_STATUS_NAMES.BORRADOR && post.status_name !== POST_STATUS_NAMES.ACTIVO && post.status_name !== POST_STATUS_NAMES.REVISION) {
                 return reply.code(403).send({
                     message: `No se puede editar una publicación con estado "${post.status_name}"`
                 })
