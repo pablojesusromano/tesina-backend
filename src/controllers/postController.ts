@@ -117,6 +117,7 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
         let imagesMetadata: Array<{ index: number, latitude?: number, longitude?: number }> = []
         let status: number | undefined
         let specieId: number | undefined
+        let watchedAt: string | undefined
         let taggedUserIds: number[] = []
         const uploadedFiles: { filename: string; filepath: string }[] = []
 
@@ -128,6 +129,8 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
                     status = Number(part.value)
                 } else if (part.fieldname === 'specie_id') {
                     specieId = Number(part.value)
+                } else if (part.fieldname === 'watched_at') {
+                    watchedAt = part.value as string
                 }
                 if (part.fieldname === 'title') {
                     title = part.value as string
@@ -227,7 +230,7 @@ export async function createNewPost(req: FastifyRequest, reply: FastifyReply) {
             })
         }
 
-        const postId = await createPost(user.id, title, description, status, specieId)
+        const postId = await createPost(user.id, title, description, status, specieId, watchedAt ?? null)
 
         if (!postId) {
             uploadedFiles.forEach(f => {
@@ -454,10 +457,11 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
     const { id } = req.params as { id: string }
     const postId = Number(id)
 
-    const { title, description, tagged_user_ids } = req.body as {
+    const { title, description, tagged_user_ids, watched_at } = req.body as {
         title?: string
         description?: string
         tagged_user_ids?: number[]
+        watched_at?: string | null
     }
 
     try {
@@ -488,9 +492,9 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
             (description !== undefined && description !== post.description)
         )
 
-        // Actualizar título/descripción si se enviaron
-        if (title !== undefined || description !== undefined) {
-            const success = await updatePost(postId, title, description)
+        // Actualizar título/descripción/watched_at si se enviaron
+        if (title !== undefined || description !== undefined || watched_at !== undefined) {
+            const success = await updatePost(postId, title, description, watched_at)
             if (!success && contentChanged) {
                 return reply.code(500).send({ message: 'Error actualizando publicación' })
             }

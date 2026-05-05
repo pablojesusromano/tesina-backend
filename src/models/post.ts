@@ -9,6 +9,7 @@ export interface Post {
     title: string
     description: string
     user_id: number
+    watched_at: Date | null
     status_id: number
     used_for_research: boolean
     created_at: Date
@@ -35,13 +36,14 @@ export async function createPost(
     title: string,
     description: string,
     status: number,
-    specieId: number
+    specieId: number,
+    watchedAt?: string | null
 ): Promise<number | null> {
     try {
-
         const [result] = await pool.query<ResultSetHeader>(
-            `INSERT INTO posts (user_id, title, description, status_id, specie_id) VALUES (?, ?, ?, ?, ?)`,
-            [userId, title, description, status, specieId]
+            `INSERT INTO posts (user_id, watched_at, title, description, status_id, specie_id)
+             VALUES (?, COALESCE(?, NOW()), ?, ?, ?, ?)`,
+            [userId, watchedAt ?? null, title, description, status, specieId]
         )
         return result.insertId
     } catch (error) {
@@ -70,6 +72,7 @@ export async function getAllPosts(
             p.title,
             p.description,
             p.user_id,
+            p.watched_at,
             p.status_id,
             p.used_for_research,
             ps.name as status_name,
@@ -133,6 +136,7 @@ export async function findPostById(postId: number): Promise<PostWithUserAndImage
             p.title,
             p.description,
             p.user_id,
+            p.watched_at,
             p.status_id,
             p.used_for_research,
             ps.name as status_name,
@@ -185,6 +189,7 @@ export async function getPostsByUserId(
             p.title,
             p.description,
             p.user_id,
+            p.watched_at,
             p.status_id,
             p.used_for_research,
             ps.name as status_name,
@@ -225,7 +230,8 @@ export async function getPostsByUserId(
 export async function updatePost(
     postId: number,
     title?: string,
-    description?: string
+    description?: string,
+    watchedAt?: string | null
 ): Promise<boolean> {
     try {
         const updates: string[] = []
@@ -238,6 +244,10 @@ export async function updatePost(
         if (description !== undefined) {
             updates.push('description = ?')
             values.push(description)
+        }
+        if (watchedAt !== undefined) {
+            updates.push('watched_at = ?')
+            values.push(watchedAt)
         }
 
         if (updates.length === 0) return false
