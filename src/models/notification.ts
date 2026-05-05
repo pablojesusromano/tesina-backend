@@ -7,7 +7,6 @@ export interface AppNotification {
     type: 'INDIVIDUAL' | 'GLOBAL'
     user_id: number | null
     data: any // JSON metadata
-    is_read: boolean
     is_claimed: boolean
     read_at: Date | null
     created_at: Date
@@ -23,8 +22,8 @@ export async function createNotification(
     dataJson: any
 ): Promise<number | null> {
     const [result] = await pool.query<ResultSetHeader>(
-        `INSERT INTO notifications (user_id, notification_type_id, type, data, is_read, is_claimed)
-         VALUES (?, ?, 'INDIVIDUAL', ?, false, false)`,
+        `INSERT INTO notifications (user_id, notification_type_id, type, data, is_claimed)
+         VALUES (?, ?, 'INDIVIDUAL', ?, false)`,
         [userId, notificationTypeId, JSON.stringify(dataJson || {})]
     )
     return result.insertId || null
@@ -42,8 +41,8 @@ export async function createBroadcastFanout(
         : 'WHERE deleted_at IS NULL'
 
     const [result] = await pool.query<ResultSetHeader>(
-        `INSERT INTO notifications (user_id, notification_type_id, type, data, is_read, is_claimed)
-         SELECT id, ?, 'GLOBAL', ?, false, false FROM users ${whereClause}`,
+        `INSERT INTO notifications (user_id, notification_type_id, type, data, is_claimed)
+         SELECT id, ?, 'GLOBAL', ?, false FROM users ${whereClause}`,
         [notificationTypeId, JSON.stringify(dataJson || {})]
     )
     return result.affectedRows
@@ -58,8 +57,7 @@ export async function getUserNotifications(userId: number): Promise<AppNotificat
          INNER JOIN notification_types t ON t.id = n.notification_type_id
          WHERE n.user_id = ? AND n.is_claimed = 0
            AND NOT (
-             n.is_read = 1
-             AND n.read_at IS NOT NULL
+             n.read_at IS NOT NULL
              AND n.read_at < DATE_SUB(NOW(), INTERVAL 1 DAY)
              AND (n.data NOT LIKE '%"type":"gamification_action"%' OR n.data IS NULL)
            )
@@ -83,7 +81,7 @@ export async function getNotificationById(id: number): Promise<AppNotification |
 export async function markNotificationAsRead(id: number, userId: number): Promise<boolean> {
     // Solo setear read_at la primera vez que se marca como leída
     const [result] = await pool.query<ResultSetHeader>(
-        'UPDATE notifications SET is_read = true, read_at = COALESCE(read_at, NOW()) WHERE id = ? AND user_id = ?',
+        'UPDATE notifications SET read_at = COALESCE(read_at, NOW()) WHERE id = ? AND user_id = ?',
         [id, userId]
     )
     return result.affectedRows > 0
