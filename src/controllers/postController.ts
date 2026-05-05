@@ -471,13 +471,13 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
             return reply.code(404).send({ message: 'Publicación no encontrada' })
         }
 
-        if (post.status_name !== POST_STATUS_NAMES.BORRADOR && post.status_name !== POST_STATUS_NAMES.ACTIVO) {
-            return reply.code(403).send({
-                message: `No se puede editar una publicación con estado "${post.status_name}"`
-            })
-        }
-
         if (authType === 'user') {
+            if (post.status_name !== POST_STATUS_NAMES.BORRADOR && post.status_name !== POST_STATUS_NAMES.ACTIVO) {
+                return reply.code(403).send({
+                    message: `No se puede editar una publicación con estado "${post.status_name}"`
+                })
+            }
+
             const user = (req as any).user
             if (post.user_id !== user.id) {
                 return reply.code(403).send({
