@@ -90,6 +90,7 @@ export async function getRanking(req: FastifyRequest, reply: FastifyReply) {
     const [rows] = await pool.query<(RowDataPacket & User)[]>(
         `SELECT id, firebase_uid, username, name, image, user_type_id, exp, level, created_at, updated_at
          FROM users
+         WHERE type_app = 0 AND deleted_at IS NULL
          ORDER BY level DESC, exp DESC
          LIMIT 10`
     )

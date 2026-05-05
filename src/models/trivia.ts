@@ -117,7 +117,7 @@ export async function getTriviaRanking(limit: number = 20): Promise<any[]> {
          FROM user_trivia_answers uta
          INNER JOIN trivia_answers ta ON ta.id = uta.answer_id
          INNER JOIN users u ON u.id = uta.user_id
-         WHERE ta.is_correct = 1
+         WHERE ta.is_correct = 1 AND u.type_app = 0 AND u.deleted_at IS NULL
          GROUP BY u.id, u.username, u.name, u.image
          ORDER BY correct_count DESC
          LIMIT ?`,

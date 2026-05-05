@@ -152,6 +152,7 @@ export async function getStreakRanking(limit: number = 20): Promise<any[]> {
         SELECT cs.user_id, cs.streak, u.username, u.name, u.image
         FROM current_streaks cs
         INNER JOIN users u ON u.id = cs.user_id
+        WHERE u.type_app = 0 AND u.deleted_at IS NULL
         ORDER BY cs.streak DESC
         LIMIT ?`,
         [limit]
