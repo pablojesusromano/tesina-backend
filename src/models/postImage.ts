@@ -49,6 +49,24 @@ export async function getPostImages(postId: number): Promise<PostImage[]> {
     return rows
 }
 
+// ==================== ACTUALIZAR UBICACIÓN DE LAS IMÁGENES ====================
+export async function updatePostImagesLocation(
+    postId: number,
+    latitude: number | null,
+    longitude: number | null
+): Promise<boolean> {
+    try {
+        const [result] = await pool.query<ResultSetHeader>(
+            'UPDATE post_images SET latitude = ?, longitude = ? WHERE post_id = ?',
+            [latitude, longitude, postId]
+        )
+        return result.affectedRows > 0
+    } catch (error) {
+        console.error('Error actualizando ubicación de imágenes:', error)
+        return false
+    }
+}
+
 // ==================== ELIMINAR IMÁGENES DE UN POST ====================
 export async function deletePostImages(postId: number): Promise<boolean> {
     try {

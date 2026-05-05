@@ -110,8 +110,12 @@ export const updatePostSchema = z.object({
     description: z.string()
         .min(10, { message: 'La descripción debe tener al menos 10 caracteres' })
         .max(5000, { message: 'La descripción no puede superar los 5000 caracteres' })
-        .optional()
-}).refine(data => data.title !== undefined || data.description !== undefined, {
+        .optional(),
+    watched_at: z.string().optional().nullable(),
+    tagged_user_ids: z.array(z.number()).optional(),
+    latitude: z.number().optional().nullable(),
+    longitude: z.number().optional().nullable()
+}).refine(data => Object.keys(data).length > 0, {
     message: 'Debes proporcionar al menos un campo para actualizar'
 })
 

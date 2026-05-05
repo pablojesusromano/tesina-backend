@@ -23,7 +23,7 @@ import {
     updatePostSpecieId
 } from '../models/post.js'
 import {
-    createPostImage
+    createPostImage, updatePostImagesLocation
 } from '../models/postImage.js'
 import { POST_STATUS_NAMES, type PostStatusName, getAllStatusNames } from '../models/postStatus.js'
 import { setPostTags, getPostTagIds } from '../models/postTag.js'
@@ -457,11 +457,13 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
     const { id } = req.params as { id: string }
     const postId = Number(id)
 
-    const { title, description, tagged_user_ids, watched_at } = req.body as {
+    const { title, description, tagged_user_ids, watched_at, latitude, longitude } = req.body as {
         title?: string
         description?: string
         tagged_user_ids?: number[]
         watched_at?: string | null
+        latitude?: number | null
+        longitude?: number | null
     }
 
     try {
@@ -494,9 +496,23 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
 
         // Actualizar título/descripción/watched_at si se enviaron
         if (title !== undefined || description !== undefined || watched_at !== undefined) {
+            req.server.log.info(`[updatePostById] Enviando a updatePost. title=${title !== undefined}, desc=${description !== undefined}, watched=${watched_at !== undefined}`)
             const success = await updatePost(postId, title, description, watched_at)
+            
+            req.server.log.info(`[updatePostById] Resultado updatePost: success=${success}, contentChanged=${contentChanged}`)
+            
             if (!success && contentChanged) {
+                req.server.log.error(`[updatePostById] Error en BD al actualizar contenido`)
                 return reply.code(500).send({ message: 'Error actualizando publicación' })
+            }
+        }
+
+        // Actualizar ubicación si se envió
+        if (latitude !== undefined || longitude !== undefined) {
+            req.server.log.info(`[updatePostById] Actualizando ubicación. lat=${latitude}, lng=${longitude}`)
+            const locSuccess = await updatePostImagesLocation(postId, latitude ?? null, longitude ?? null)
+            if (!locSuccess) {
+                req.server.log.warn(`[updatePostById] La actualización de ubicación no afectó a ninguna fila o falló`)
             }
         }
 
