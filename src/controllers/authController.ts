@@ -10,7 +10,7 @@ function setAccessCookie(reply: FastifyReply, token: string) {
         secure: isProd,
         sameSite: 'lax',
         path: '/',
-        maxAge: 15 * 60 // 15 min
+        maxAge: 8 * 60 * 60 // 8 horas
     })
 }
 

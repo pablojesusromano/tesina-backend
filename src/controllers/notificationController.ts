@@ -5,7 +5,8 @@ import {
     markNotificationAsRead,
     markNotificationAsClaimed,
     getNotificationById,
-    createBroadcastFanout
+    createBroadcastFanout,
+    createCustomBroadcast
 } from '../models/notification.js'
 import { findNotificationTypeByKey } from '../models/notificationType.js'
 import { markActionHistoryAsClaimed, calculateUserTotalExp } from '../models/userActionHistory.js'
@@ -17,9 +18,6 @@ export async function getMyNotifications(req: FastifyRequest, reply: FastifyRepl
         const notifications = await getUserNotifications(user.id)
 
         const parsed = notifications.map(notif => {
-            let finalBody = notif.body || ''
-            const finalTitle = notif.title || ''
-
             let dataObj: any = {}
             if (typeof notif.data === 'string') {
                 try {
@@ -29,10 +27,17 @@ export async function getMyNotifications(req: FastifyRequest, reply: FastifyRepl
                 dataObj = notif.data
             }
 
-            const varRegex = /\{([^}]+)\}/g
-            finalBody = finalBody.replace(varRegex, (match, key) => {
-                return dataObj && dataObj[key] !== undefined ? dataObj[key] : match
-            })
+            // Para notificaciones admin_mensaje, usar título y cuerpo custom del JSON
+            const isAdminMsg = dataObj?.type === 'admin_mensaje'
+            const finalTitle = isAdminMsg ? (dataObj.customTitle || notif.title || '') : (notif.title || '')
+            let finalBody    = isAdminMsg ? (dataObj.customBody  || notif.body  || '') : (notif.body  || '')
+
+            if (!isAdminMsg) {
+                const varRegex = /\{([^}]+)\}/g
+                finalBody = finalBody.replace(varRegex, (match: string, key: string) => {
+                    return dataObj && dataObj[key] !== undefined ? dataObj[key] : match
+                })
+            }
 
             return {
                 id: notif.id,
@@ -60,9 +65,6 @@ export async function getMyNotificationHistory(req: FastifyRequest, reply: Fasti
         const notifications = await getUserNotificationHistory(user.id)
 
         const parsed = notifications.map(notif => {
-            let finalBody = notif.body || ''
-            const finalTitle = notif.title || ''
-
             let dataObj: any = {}
             if (typeof notif.data === 'string') {
                 try {
@@ -72,10 +74,16 @@ export async function getMyNotificationHistory(req: FastifyRequest, reply: Fasti
                 dataObj = notif.data
             }
 
-            const varRegex = /\{([^}]+)\}/g
-            finalBody = finalBody.replace(varRegex, (match, key) => {
-                return dataObj && dataObj[key] !== undefined ? dataObj[key] : match
-            })
+            const isAdminMsg = dataObj?.type === 'admin_mensaje'
+            const finalTitle = isAdminMsg ? (dataObj.customTitle || notif.title || '') : (notif.title || '')
+            let finalBody    = isAdminMsg ? (dataObj.customBody  || notif.body  || '') : (notif.body  || '')
+
+            if (!isAdminMsg) {
+                const varRegex = /\{([^}]+)\}/g
+                finalBody = finalBody.replace(varRegex, (match: string, key: string) => {
+                    return dataObj && dataObj[key] !== undefined ? dataObj[key] : match
+                })
+            }
 
             return {
                 id: notif.id,
@@ -206,5 +214,34 @@ export async function broadcastNotification(req: FastifyRequest, reply: FastifyR
         })
     } catch (e) {
         return reply.code(500).send({ message: 'Error interno broadcast' })
+    }
+}
+
+// Para administradores: enviar mensaje libre (título + cuerpo) a TODOS los usuarios
+export async function sendCustomBroadcast(req: FastifyRequest, reply: FastifyReply) {
+    const admin = (req as any).admin
+    const { title, body } = req.body as { title: string, body: string }
+
+    if (!title?.trim() || !body?.trim()) {
+        return reply.code(400).send({ message: 'title y body son obligatorios' })
+    }
+
+    if (title.length > 100) {
+        return reply.code(400).send({ message: 'El título no puede superar los 100 caracteres' })
+    }
+
+    if (body.length > 500) {
+        return reply.code(400).send({ message: 'El cuerpo no puede superar los 500 caracteres' })
+    }
+
+    try {
+        const affected = await createCustomBroadcast(title.trim(), body.trim(), admin.id)
+        return reply.send({
+            message: `Notificación enviada a ${affected} usuario/s`,
+            users_affected: affected
+        })
+    } catch (e: any) {
+        console.error('[sendCustomBroadcast]', e)
+        return reply.code(500).send({ message: e.message || 'Error interno' })
     }
 }

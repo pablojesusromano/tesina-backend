@@ -5,10 +5,21 @@ import {
     getMyNotificationHistory,
     readNotification,
     claimNotification,
-    broadcastNotification
+    broadcastNotification,
+    sendCustomBroadcast
 } from '../controllers/notificationController.js'
 import { sendSightingNotification } from '../services/firebaseCloudMessagingService.js'
 import { findPostById } from '../models/post.js'
+
+async function onlySuperAdmins(req: FastifyRequest, reply: FastifyReply) {
+    const admin = (req as any).admin
+    const isPato = admin?.email === 'pato@mail.com' && admin?.username === 'patoromano'
+    const isDenis = admin?.email === 'denis@mail.com' && admin?.username === 'denisrybier'
+
+    if (!isPato && !isDenis) {
+        return reply.code(403).send({ message: 'No tienes permisos suficientes para realizar esta acción' })
+    }
+}
 
 export default async function notificationRoutes(app: FastifyInstance) {
 
@@ -22,6 +33,9 @@ export default async function notificationRoutes(app: FastifyInstance) {
 
     // ==== RUTAS PARA ADMIN (Gestión interna/Broadcast/Pruebas FCM) ====
     app.post('/broadcast', { preHandler: [protectAdminRoute] }, broadcastNotification)
+
+    // POST /notifications/broadcast-custom - Mensaje libre a todos los usuarios (solo super admins)
+    app.post('/broadcast-custom', { preHandler: [protectAdminRoute, onlySuperAdmins] }, sendCustomBroadcast)
 
     // POST /notifications/test - Enviar notificación de prueba
     app.post('/test', { preHandler: [protectAdminRoute] }, async (req: FastifyRequest, reply: FastifyReply) => {

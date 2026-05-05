@@ -48,6 +48,39 @@ export async function createBroadcastFanout(
     return result.affectedRows
 }
 
+/** Fanout custom: envía una notificación con título y cuerpo libre a todos los usuarios.
+ *  No requiere plantilla en notification_types. Usa el tipo con key='admin_mensaje' como base.
+ */
+export async function createCustomBroadcast(
+    title: string,
+    body: string,
+    adminId: number
+): Promise<number> {
+    // Buscar o usar el notification_type_id del tipo admin_mensaje
+    const [typeRows] = await pool.query<RowDataPacket[]>(
+        `SELECT id FROM notification_types WHERE \`key\` = 'admin_mensaje' LIMIT 1`
+    )
+    const notificationTypeId: number = typeRows[0]?.id ?? null
+
+    if (!notificationTypeId) {
+        throw new Error("No existe el notification_type con key='admin_mensaje'. Crealo primero en la BD.")
+    }
+
+    const dataJson = JSON.stringify({
+        type: 'admin_mensaje',
+        customTitle: title,
+        customBody: body,
+        sentBy: adminId
+    })
+
+    const [result] = await pool.query<ResultSetHeader>(
+        `INSERT INTO notifications (user_id, notification_type_id, type, data, is_claimed)
+         SELECT id, ?, 'GLOBAL', ?, false FROM users WHERE deleted_at IS NULL`,
+        [notificationTypeId, dataJson]
+    )
+    return result.affectedRows
+}
+
 export async function getUserNotifications(userId: number): Promise<AppNotification[]> {
     // Notificaciones no reclamadas, EXCLUYENDO las no-premio leídas hace más de 24h.
     // Las notificaciones de premio (gamification_action) permanecen hasta ser reclamadas.
