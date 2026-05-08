@@ -488,10 +488,14 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
             }
         }
 
-        // Determinar si cambió contenido (título o descripción)
-        const contentChanged = (
-            (title !== undefined && title !== post.title) ||
-            (description !== undefined && description !== post.description)
+        // Determinar si hubo alguna edición
+        const isEditing = (
+            title !== undefined ||
+            description !== undefined ||
+            watched_at !== undefined ||
+            latitude !== undefined ||
+            longitude !== undefined ||
+            tagged_user_ids !== undefined
         )
 
         // Actualizar título/descripción/watched_at si se enviaron
@@ -499,9 +503,9 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
             req.server.log.info(`[updatePostById] Enviando a updatePost. title=${title !== undefined}, desc=${description !== undefined}, watched=${watched_at !== undefined}`)
             const success = await updatePost(postId, title, description, watched_at)
             
-            req.server.log.info(`[updatePostById] Resultado updatePost: success=${success}, contentChanged=${contentChanged}`)
+            req.server.log.info(`[updatePostById] Resultado updatePost: success=${success}`)
             
-            if (!success && contentChanged) {
+            if (!success) {
                 req.server.log.error(`[updatePostById] Error en BD al actualizar contenido`)
                 return reply.code(500).send({ message: 'Error actualizando publicación' })
             }
@@ -548,16 +552,15 @@ export async function updatePostById(req: FastifyRequest, reply: FastifyReply) {
             }
         }
 
-        // Solo enviar a REVISION si cambió contenido (título/descripción)
-        // Las etiquetas NO provocan re-revisión
-        if (contentChanged && post.status_name === POST_STATUS_NAMES.ACTIVO) {
+        // Enviar a REVISION si se editó CUALQUIER campo (y el post estaba activo)
+        if (isEditing && post.status_name === POST_STATUS_NAMES.ACTIVO) {
             await updatePostStatus(postId, POST_STATUS_NAMES.REVISION)
         }
 
         const updatedPost = await findPostById(postId)
 
         let message = 'Publicación actualizada exitosamente'
-        if (contentChanged && post.status_name === POST_STATUS_NAMES.ACTIVO) {
+        if (isEditing && post.status_name === POST_STATUS_NAMES.ACTIVO) {
             message = 'Publicación actualizada. Fue enviada a revisión nuevamente.'
         }
 

@@ -95,20 +95,18 @@ const userTypeSchema = z.object({
 
 export const createPostSchema = z.object({
     title: z.string()
-        .min(3, { message: 'El título debe tener al menos 3 caracteres' })
+        .min(1, { message: 'El título no puede estar vacío' })
         .max(200, { message: 'El título no puede superar los 200 caracteres' }),
     description: z.string()
-        .min(10, { message: 'La descripción debe tener al menos 10 caracteres' })
         .max(5000, { message: 'La descripción no puede superar los 5000 caracteres' })
 })
 
 export const updatePostSchema = z.object({
     title: z.string()
-        .min(3, { message: 'El título debe tener al menos 3 caracteres' })
+        .min(1, { message: 'El título no puede estar vacío' })
         .max(200, { message: 'El título no puede superar los 200 caracteres' })
         .optional(),
     description: z.string()
-        .min(10, { message: 'La descripción debe tener al menos 10 caracteres' })
         .max(5000, { message: 'La descripción no puede superar los 5000 caracteres' })
         .optional(),
     watched_at: z.string().optional().nullable(),
