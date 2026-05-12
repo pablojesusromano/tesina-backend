@@ -210,83 +210,68 @@ export interface CustomBroadcastPushData {
 export async function sendCustomBroadcastPush(
     app: FastifyInstance,
     data: CustomBroadcastPushData
-): Promise<void> {
-    try {
-        const { title, body, target } = data
+): Promise<{ tokenCount: number; successCount: number; failureCount: number }> {
+    const { title, body, target } = data
 
-        const tokens = await getTokensByTarget(target)
+    const tokens = await getTokensByTarget(target)
 
-        if (!tokens.length) {
-            app.log.info({ msg: 'sendCustomBroadcastPush: no hay tokens registrados', target })
-            return
-        }
+    app.log.info({ msg: 'sendCustomBroadcastPush: tokens encontrados', tokenCount: tokens.length, target })
 
-        // FCM acepta máximo 500 tokens por sendEachForMulticast
-        const BATCH_SIZE = 500
-        let successCount = 0
-        let failureCount = 0
+    if (!tokens.length) {
+        return { tokenCount: 0, successCount: 0, failureCount: 0 }
+    }
 
-        for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
-            const batch = tokens.slice(i, i + BATCH_SIZE)
+    // Mismo patrón que sendTagNotification: send individual por token
+    let successCount = 0
+    let failureCount = 0
 
-            const multicastMessage = {
-                tokens: batch,
+    const sendPromises = tokens.map(token => {
+        const message = {
+            token,
+            notification: {
+                title,
+                body,
+            },
+            data: {
+                type: 'admin_mensaje',
+                customTitle: title,
+                customBody: body,
+            },
+            android: {
+                priority: 'high' as const,
                 notification: {
-                    title,
-                    body,
-                },
-                data: {
-                    type: 'admin_mensaje',
-                    customTitle: title,
-                    customBody: body,
-                },
-                android: {
-                    priority: 'high' as const,
-                    notification: {
-                        channelId: 'sightings',
+                    channelId: 'sightings',
+                    sound: 'default',
+                    priority: 'high' as const
+                }
+            },
+            apns: {
+                payload: {
+                    aps: {
                         sound: 'default',
-                        priority: 'high' as const
-                    }
-                },
-                apns: {
-                    payload: {
-                        aps: {
-                            sound: 'default',
-                            badge: 1
-                        }
+                        badge: 1
                     }
                 }
             }
-
-            const response = await app.firebase.messaging().sendEachForMulticast(multicastMessage)
-            successCount += response.successCount
-            failureCount += response.failureCount
-
-            // Loguear tokens que fallaron (ej: token expirado)
-            response.responses.forEach((res, idx) => {
-                if (!res.success) {
-                    app.log.warn({
-                        msg: 'Token FCM fallido en custom broadcast',
-                        token: batch[idx],
-                        error: res.error?.message
-                    })
-                }
-            })
         }
 
-        app.log.info({
-            msg: 'Custom broadcast push enviado',
-            target,
-            totalTokens: tokens.length,
-            successCount,
-            failureCount
-        })
+        return app.firebase.messaging().send(message)
+            .then(() => { successCount++ })
+            .catch(err => {
+                failureCount++
+                app.log.warn({ msg: 'Token FCM fallido en custom broadcast', token, error: err?.message })
+            })
+    })
 
-    } catch (error) {
-        app.log.error({
-            msg: 'Error enviando custom broadcast push FCM',
-            error,
-            target: data.target
-        })
-    }
+    await Promise.allSettled(sendPromises)
+
+    app.log.info({
+        msg: 'Custom broadcast push completado',
+        target,
+        tokenCount: tokens.length,
+        successCount,
+        failureCount
+    })
+
+    return { tokenCount: tokens.length, successCount, failureCount }
 }

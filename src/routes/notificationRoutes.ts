@@ -72,15 +72,19 @@ export default async function notificationRoutes(app: FastifyInstance) {
             // 1. Fanout en la BD (aparece en la campanita)
             const affected = await createCustomBroadcast(title.trim(), body.trim(), admin.id, target)
 
-            // 2. Push FCM a los dispositivos físicos (no bloquea la respuesta si falla)
-            sendCustomBroadcastPush(app, { title: title.trim(), body: body.trim(), target }).catch(err => {
-                app.log.error({ msg: 'Error en push FCM de broadcast-custom (no crítico)', err })
-            })
+            // 2. Push FCM a los dispositivos físicos (awaited para ver errores)
+            let pushStats = { tokenCount: 0, successCount: 0, failureCount: 0 }
+            try {
+                pushStats = await sendCustomBroadcastPush(app, { title: title.trim(), body: body.trim(), target })
+            } catch (pushErr: any) {
+                app.log.error({ msg: 'Error en push FCM de broadcast-custom', pushErr })
+            }
 
             return reply.send({
                 message: `Notificación enviada a ${affected} ${targetLabels[target]}`,
                 users_affected: affected,
-                target
+                target,
+                push: pushStats
             })
         } catch (e: any) {
             app.log.error({ msg: '[broadcast-custom]', e })
