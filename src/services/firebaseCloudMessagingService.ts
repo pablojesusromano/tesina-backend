@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { getDevicesByUserId } from '../models/device.js'
+import { getDevicesByUserId, getTokensByTarget } from '../models/device.js'
 
 export interface SightingNotificationData {
     postId: number
@@ -196,6 +196,97 @@ export async function sendTagNotification(
             msg: 'Error enviando notificaciones de etiquetado',
             error,
             postId: data.postId
+        })
+    }
+}
+
+// ==================== NOTIFICACIÓN CUSTOM BROADCAST ====================
+export interface CustomBroadcastPushData {
+    title: string
+    body: string
+    target: 'all' | 'gamified' | 'non_gamified'
+}
+
+export async function sendCustomBroadcastPush(
+    app: FastifyInstance,
+    data: CustomBroadcastPushData
+): Promise<void> {
+    try {
+        const { title, body, target } = data
+
+        const tokens = await getTokensByTarget(target)
+
+        if (!tokens.length) {
+            app.log.info({ msg: 'sendCustomBroadcastPush: no hay tokens registrados', target })
+            return
+        }
+
+        // FCM acepta máximo 500 tokens por sendEachForMulticast
+        const BATCH_SIZE = 500
+        let successCount = 0
+        let failureCount = 0
+
+        for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
+            const batch = tokens.slice(i, i + BATCH_SIZE)
+
+            const multicastMessage = {
+                tokens: batch,
+                notification: {
+                    title,
+                    body,
+                },
+                data: {
+                    type: 'admin_mensaje',
+                    customTitle: title,
+                    customBody: body,
+                },
+                android: {
+                    priority: 'high' as const,
+                    notification: {
+                        channelId: 'sightings',
+                        sound: 'default',
+                        priority: 'high' as const
+                    }
+                },
+                apns: {
+                    payload: {
+                        aps: {
+                            sound: 'default',
+                            badge: 1
+                        }
+                    }
+                }
+            }
+
+            const response = await app.firebase.messaging().sendEachForMulticast(multicastMessage)
+            successCount += response.successCount
+            failureCount += response.failureCount
+
+            // Loguear tokens que fallaron (ej: token expirado)
+            response.responses.forEach((res, idx) => {
+                if (!res.success) {
+                    app.log.warn({
+                        msg: 'Token FCM fallido en custom broadcast',
+                        token: batch[idx],
+                        error: res.error?.message
+                    })
+                }
+            })
+        }
+
+        app.log.info({
+            msg: 'Custom broadcast push enviado',
+            target,
+            totalTokens: tokens.length,
+            successCount,
+            failureCount
+        })
+
+    } catch (error) {
+        app.log.error({
+            msg: 'Error enviando custom broadcast push FCM',
+            error,
+            target: data.target
         })
     }
 }

@@ -34,6 +34,26 @@ export async function updateDeviceToken(deviceId: number, userId: number, newTok
     return result.affectedRows > 0
 }
 
+export async function getTokensByTarget(
+    target: 'all' | 'gamified' | 'non_gamified'
+): Promise<string[]> {
+    const whereClause =
+        target === 'gamified'     ? 'AND u.type_app = 0' :
+        target === 'non_gamified' ? 'AND u.type_app = 1' :
+                                    ''
+
+    const [rows] = await pool.execute<(RowDataPacket & { token: string })[]>(
+        `SELECT d.token
+         FROM devices d
+         INNER JOIN users u ON u.id = d.user_id
+         WHERE u.deleted_at IS NULL
+           AND d.token IS NOT NULL
+           AND d.token != ''
+           ${whereClause}`
+    )
+    return rows.map(r => r.token)
+}
+
 export async function deleteDevice(deviceId: number, userId: number): Promise<boolean> {
     const [result] = await pool.execute<ResultSetHeader>(
         'DELETE FROM devices WHERE id = ? AND user_id = ?',

@@ -5,10 +5,13 @@ import {
     getMyNotificationHistory,
     readNotification,
     claimNotification,
-    broadcastNotification,
-    sendCustomBroadcast
+    broadcastNotification
 } from '../controllers/notificationController.js'
-import { sendSightingNotification } from '../services/firebaseCloudMessagingService.js'
+import {
+    sendSightingNotification,
+    sendCustomBroadcastPush
+} from '../services/firebaseCloudMessagingService.js'
+import { createCustomBroadcast } from '../models/notification.js'
 import { findPostById } from '../models/post.js'
 
 async function onlySuperAdmins(req: FastifyRequest, reply: FastifyReply) {
@@ -35,7 +38,55 @@ export default async function notificationRoutes(app: FastifyInstance) {
     app.post('/broadcast', { preHandler: [protectAdminRoute] }, broadcastNotification)
 
     // POST /notifications/broadcast-custom - Mensaje libre a todos los usuarios (solo super admins)
-    app.post('/broadcast-custom', { preHandler: [protectAdminRoute, onlySuperAdmins] }, sendCustomBroadcast)
+    app.post('/broadcast-custom', { preHandler: [protectAdminRoute, onlySuperAdmins] }, async (req: FastifyRequest, reply: FastifyReply) => {
+        const admin = (req as any).admin
+        const { title, body, target = 'all' } = req.body as {
+            title: string
+            body: string
+            target?: 'all' | 'gamified' | 'non_gamified'
+        }
+
+        if (!title?.trim() || !body?.trim()) {
+            return reply.code(400).send({ message: 'title y body son obligatorios' })
+        }
+
+        if (!['all', 'gamified', 'non_gamified'].includes(target)) {
+            return reply.code(400).send({ message: 'target debe ser "all", "gamified" o "non_gamified"' })
+        }
+
+        if (title.length > 100) {
+            return reply.code(400).send({ message: 'El título no puede superar los 100 caracteres' })
+        }
+
+        if (body.length > 500) {
+            return reply.code(400).send({ message: 'El cuerpo no puede superar los 500 caracteres' })
+        }
+
+        const targetLabels = {
+            all:          'todos los usuarios',
+            gamified:     'usuarios gamificados',
+            non_gamified: 'usuarios no gamificados'
+        }
+
+        try {
+            // 1. Fanout en la BD (aparece en la campanita)
+            const affected = await createCustomBroadcast(title.trim(), body.trim(), admin.id, target)
+
+            // 2. Push FCM a los dispositivos físicos (no bloquea la respuesta si falla)
+            sendCustomBroadcastPush(app, { title: title.trim(), body: body.trim(), target }).catch(err => {
+                app.log.error({ msg: 'Error en push FCM de broadcast-custom (no crítico)', err })
+            })
+
+            return reply.send({
+                message: `Notificación enviada a ${affected} ${targetLabels[target]}`,
+                users_affected: affected,
+                target
+            })
+        } catch (e: any) {
+            app.log.error({ msg: '[broadcast-custom]', e })
+            return reply.code(500).send({ message: e.message || 'Error interno' })
+        }
+    })
 
     // POST /notifications/test - Enviar notificación de prueba
     app.post('/test', { preHandler: [protectAdminRoute] }, async (req: FastifyRequest, reply: FastifyReply) => {
