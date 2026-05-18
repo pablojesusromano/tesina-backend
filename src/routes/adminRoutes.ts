@@ -9,6 +9,7 @@ import {
     deleteAdmin
 } from '../controllers/adminController.js'
 import { listScreenTime } from '../controllers/screenTimeController.js'
+import { listRawSessions } from '../controllers/rawSessionsController.js'
 
 // Middleware: solo el dueño del perfil puede acceder
 async function onlyAdminOwner(req: FastifyRequest, reply: FastifyReply) {
@@ -57,4 +58,7 @@ export default async function adminRoutes(app: FastifyInstance) {
 
     // DELETE /admins/:id - Eliminar admin (solo el dueño puede eliminarse a sí mismo)
     app.delete('/:id', { preHandler: onlyAdminOwner }, deleteAdmin)
+
+    app.get('/screen-time/raw', { preHandler: onlySuperAdmins }, listRawSessions)
+
 }
