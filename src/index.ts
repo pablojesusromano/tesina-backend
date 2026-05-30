@@ -22,6 +22,7 @@ import deviceRoutes from './routes/deviceRoutes.js'
 import trophyRoutes from './routes/trophyRoutes.js'
 import triviaRoutes from './routes/triviaRoutes.js'
 import heatmapRoutes from './routes/heatmapRoutes.js'
+import analyticsRoutes from './routes/analyticsRoutes.js'
 
 import firebaseAdmin from './plugins/firebaseAdmin.js'
 import adminRoutes from './routes/adminRoutes.js'
@@ -102,6 +103,7 @@ await app.register(deviceRoutes, { prefix: '/api/devices' })
 await app.register(trophyRoutes, { prefix: '/api/trophies' })
 await app.register(triviaRoutes, { prefix: '/api/trivia' })
 await app.register(heatmapRoutes, { prefix: '/api/heatmap' })
+await app.register(analyticsRoutes, { prefix: '/api/analytics' })
 
 const port = Number(process.env.PORT ?? 3000)
 const host = process.env.HOST ?? '0.0.0.0'
