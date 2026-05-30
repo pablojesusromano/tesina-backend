@@ -3,6 +3,7 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 import { getPostImages, type PostImage } from './postImage.js'
 import { findStatusByName, resolveStatusIds, type PostStatusName } from './postStatus.js'
 import { getPostTags, type TaggedUser } from './postTag.js'
+import { getPostAuditLog, type AuditEntry } from './admin.js'
 
 export interface Post {
     id: number
@@ -28,6 +29,7 @@ export interface PostWithUserAndImages extends Post {
     specie_image_path: string | null
     specie_description: string | null
     specie_category: string | null
+    audit_log?: AuditEntry[]
 }
 
 // ==================== CREAR POST ====================
@@ -161,12 +163,14 @@ export async function findPostById(postId: number): Promise<PostWithUserAndImage
     if (rows.length === 0) return null
 
     const post = rows[0] as any
-    const [images, tagged_users] = await Promise.all([
+    const [images, tagged_users, audit_log] = await Promise.all([
         getPostImages(postId),
-        getPostTags(postId)
+        getPostTags(postId),
+        getPostAuditLog(postId)
     ])
     post.images = images
     post.tagged_users = tagged_users
+    post.audit_log = audit_log
 
     return post as PostWithUserAndImages
 }

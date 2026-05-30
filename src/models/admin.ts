@@ -104,6 +104,33 @@ export async function deleteAdmin(id: number): Promise<boolean> {
     return result.affectedRows > 0
 }
 
+export interface AuditEntry {
+    action_id: number
+    action_type: string
+    admin_id: number
+    admin_name: string | null
+    admin_username: string | null
+    created_at: Date
+}
+
+export async function getPostAuditLog(postId: number): Promise<AuditEntry[]> {
+    const [rows] = await pool.execute<(AuditEntry & RowDataPacket)[]>(
+        `SELECT
+            apa.id AS action_id,
+            apa.action_type,
+            apa.created_at,
+            a.id AS admin_id,
+            a.name AS admin_name,
+            a.username AS admin_username
+         FROM admin_post_actions apa
+         INNER JOIN admins a ON a.id = apa.admin_id
+         WHERE apa.post_id = ?
+         ORDER BY apa.created_at ASC`,
+        [postId]
+    )
+    return rows
+}
+
 export async function logAdminPostAction(
     adminId: number,
     postId: number,
