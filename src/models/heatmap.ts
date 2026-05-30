@@ -15,10 +15,10 @@ export interface HeatmapPoint {
 }
 
 export interface HeatmapFilters {
-    specieId?: number
-    statuses?: PostStatusName[]
-    seasonStart?: number
-    seasonEnd?: number
+    specieId?: number | undefined
+    statuses?: PostStatusName[] | undefined
+    seasonStart?: number | undefined
+    seasonEnd?: number | undefined
 }
 
 export async function getHeatmapData(filters: HeatmapFilters = {}): Promise<HeatmapPoint[]> {
